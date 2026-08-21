@@ -1,5 +1,9 @@
 
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+const TUNES_PASSWORD = 'theunforgettablesound';
+const TUNES_UNLOCK_KEY = 'bizarre:tunes-unlocked';
 
 const playlist = [
   {
@@ -113,6 +117,24 @@ function getTotalDuration(playlist: { time?: string }[]) {
 }
 
 export default function Tunes() {
+  const navigate = useNavigate();
+  const [unlocked, setUnlocked] = useState(
+    () => typeof window !== 'undefined' && sessionStorage.getItem(TUNES_UNLOCK_KEY) === '1',
+  );
+
+  useEffect(() => {
+    if (unlocked) return;
+
+    const input = window.prompt('Password:');
+    if (input === TUNES_PASSWORD) {
+      sessionStorage.setItem(TUNES_UNLOCK_KEY, '1');
+      setUnlocked(true);
+    } else {
+      window.alert('Wrong password.');
+      navigate('/', { replace: true });
+    }
+  }, [unlocked, navigate]);
+
   const [current, setCurrent] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -151,9 +173,9 @@ export default function Tunes() {
     }
   }, [current]);
 
-
-
-
+  if (!unlocked) {
+    return null;
+  }
 
   return (
     <section style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32, marginTop: 48, width: '100%' }}>

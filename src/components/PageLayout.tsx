@@ -3,6 +3,8 @@ import { useLocation } from 'react-router-dom'
 import Background from './Background'
 import Logo from './Logo'
 import Navbar from './Navbar'
+import SiteFooter from './SiteFooter'
+import { scrambleElementOnce } from './scrambleText'
 import { Link } from 'react-router-dom'
 
 type PageLayoutProps = {
@@ -55,6 +57,84 @@ function PageLayout({ children }: PageLayoutProps) {
     }
   }, [location.pathname])
 
+  // Keep the secret /tunes link out of search results even if it ever
+  // gets linked to from somewhere outside this site.
+  useEffect(() => {
+    if (location.pathname !== '/tunes') return
+
+    const meta = document.createElement('meta')
+    meta.name = 'robots'
+    meta.content = 'noindex, nofollow'
+    document.head.appendChild(meta)
+
+    return () => {
+      meta.remove()
+    }
+  }, [location.pathname])
+
+  // Glitch a link's (or button-link's) own label on hover/focus — delegated
+  // to the scroll container so it keeps working as routes swap content.
+  useEffect(() => {
+    const container = scrollRef.current
+    if (!container) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+    const active = new Set<HTMLElement>()
+
+    const handleHover = (event: Event) => {
+      const target = (event.target as HTMLElement).closest?.('a, button.button-link') as HTMLElement | null
+      if (!target || target.classList.contains('music-widget__shell') || active.has(target)) return
+
+      active.add(target)
+      const started = scrambleElementOnce(target as HTMLElement, () => active.delete(target))
+      if (started === null) active.delete(target)
+    }
+
+    container.addEventListener('mouseover', handleHover)
+    container.addEventListener('focusin', handleHover)
+
+    return () => {
+      container.removeEventListener('mouseover', handleHover)
+      container.removeEventListener('focusin', handleHover)
+    }
+  }, [])
+
+  // Glitch every link/button-link label once it scrolls into view — re-runs
+  // per route since the content below is remounted (fresh set) then.
+  useEffect(() => {
+    const contentElement = contentRef.current
+    if (!contentElement) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+    const animated = new WeakSet<Element>()
+    let observer: IntersectionObserver | null = null
+
+    const frame = window.requestAnimationFrame(() => {
+      const anchors = contentElement.querySelectorAll('a:not(.music-widget__shell), button.button-link')
+      if (!anchors.length) return
+
+      observer = new IntersectionObserver(
+        (entries, currentObserver) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting || animated.has(entry.target)) return
+
+            animated.add(entry.target)
+            currentObserver.unobserve(entry.target)
+            scrambleElementOnce(entry.target as HTMLElement)
+          })
+        },
+        { threshold: 0.5 },
+      )
+
+      anchors.forEach((anchor) => observer?.observe(anchor))
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      observer?.disconnect()
+    }
+  }, [location.pathname])
+
   return (
     <div>
       <div className='app-frame'>
@@ -67,12 +147,13 @@ function PageLayout({ children }: PageLayoutProps) {
         <div ref={scrollRef} className='app-scroll'>
           <div ref={contentRef} className={contentClassName}>
             {children}
+            <SiteFooter />
           </div>
         </div>
         <Navbar />
       </div>
     </div>
-    
+
   )
 }
 

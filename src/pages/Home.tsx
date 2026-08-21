@@ -1,22 +1,81 @@
-import { useRef } from 'react'
-import Rive from '@rive-app/react-webgl2'
+import { useEffect, useRef } from 'react'
+import { useRive } from '@rive-app/react-webgl2'
 import hologramRiv from '../assets/hologram.riv?url'
 import { Link } from 'react-router-dom'
 import CaseStudy from '../components/CaseStudy'
+import LastfmWidget from '../components/LastfmWidget'
 
 
 function Home() {
   const caseStudiesRef = useRef<HTMLElement | null>(null)
+  const heroWrapRef = useRef<HTMLDivElement | null>(null)
+  const { RiveComponent, canvas } = useRive({
+    src: hologramRiv,
+    stateMachines: 'Play',
+    autoplay: true,
+  })
+
+  // The Last.fm badge overlaps the avatar's corner, so moving onto it fires a
+  // real `mouseout` on the canvas underneath, which Rive treats as the cursor
+  // leaving and resets the hologram. We keep it reacting through that
+  // transition by: swallowing that specific mouseout (only when it's headed
+  // onto the badge, not truly leaving), and forwarding mousemove coordinates
+  // to the canvas while hovering the badge so the motion keeps tracking. A
+  // real exit — leaving the wrapper entirely — still resets normally.
+  useEffect(() => {
+    const wrap = heroWrapRef.current
+    if (!wrap || !canvas) return
+
+    const swallowInternalOut = (event: MouseEvent) => {
+      if (event.target !== canvas) return
+      const related = event.relatedTarget as Node | null
+      if (related && wrap.contains(related)) {
+        event.stopPropagation()
+      }
+    }
+
+    const forwardMove = (event: MouseEvent) => {
+      if (event.target === canvas) return
+      canvas.dispatchEvent(new MouseEvent('mousemove', {
+        clientX: event.clientX,
+        clientY: event.clientY,
+        bubbles: true,
+      }))
+    }
+
+    // True exit: if the cursor was last over the badge (not the canvas) when
+    // it leaves the wrapper, canvas never gets a native mouseout at all — so
+    // we fire one ourselves, with a relatedTarget outside the wrapper so our
+    // own swallow logic above lets it through to Rive's real reset.
+    const forwardExit = (event: MouseEvent) => {
+      canvas.dispatchEvent(new MouseEvent('mouseout', {
+        clientX: event.clientX,
+        clientY: event.clientY,
+        relatedTarget: document.body,
+        bubbles: true,
+      }))
+    }
+
+    wrap.addEventListener('mouseout', swallowInternalOut, true)
+    wrap.addEventListener('mousemove', forwardMove)
+    wrap.addEventListener('mouseleave', forwardExit)
+
+    return () => {
+      wrap.removeEventListener('mouseout', swallowInternalOut, true)
+      wrap.removeEventListener('mousemove', forwardMove)
+      wrap.removeEventListener('mouseleave', forwardExit)
+    }
+  }, [canvas])
 
   return (
     <div className='home-page'>
       <div className='home-intro'>
-        <div className='container hero-rive'>
-          <Rive
-            className='hero-rive-inner'
-            src={hologramRiv}
-            stateMachines='Play'
-          />
+        <div ref={heroWrapRef} className='hero-rive-wrap'>
+          <div className='container hero-rive'>
+            <RiveComponent className='hero-rive-inner' />
+          </div>
+
+          <LastfmWidget />
         </div>
 
         <div className='page-stack'>
@@ -96,10 +155,6 @@ function Home() {
               {
                 layout: 'stack',
                 images: [
-                  {
-                    src: '/moon/showcase.jpg',
-                    alt: 'Component showcase',
-                  },
                   {
                     src: '/moon/tokens.jpg',
                     alt: 'Tokens',
@@ -359,7 +414,7 @@ function Home() {
             meta={[
               {
                 label: 'Role',
-                value: 'UI Designer',
+                value: 'Designer',
               },
               {
                 label: 'Year',

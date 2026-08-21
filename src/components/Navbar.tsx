@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { Camera, Figma, Github, Home, Menu, type LucideIcon } from 'lucide-react'
+import { Camera, Home, Menu, type LucideIcon } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import '../styles/Navbar.css'
 
@@ -14,8 +14,6 @@ type NavItem = {
 const navItems: NavItem[] = [
 	{ id: 'home', type: 'internal', to: '/', label: 'Home', icon: Home },
 	{ id: 'photos', type: 'internal', to: '/shots', label: 'Photos', icon: Camera },
-	{ id: 'figma', type: 'external', to: 'https://www.figma.com/@kungfury', label: 'Figma', icon: Figma },
-	{ id: 'github', type: 'external', to: 'https://github.com/systmatic0', label: 'GitHub', icon: Github },
 ]
 
 function Navbar() {
@@ -189,11 +187,10 @@ function Navbar() {
 	} as CSSProperties
 
 	return (
-		<nav className='floating-nav' aria-label='Primary'>
+		<nav className='floating-nav' aria-label='Primary' style={menuStyle}>
 			<div
 				ref={setNavElement}
 				className={`floating-nav-container${isExpanded ? ' is-expanded' : ''}${isInteractionReady ? ' is-interaction-ready' : ''}`}
-				style={menuStyle}
 				onPointerDownCapture={() => {
 					if (!isMobile || !isExpanded) {
 						return

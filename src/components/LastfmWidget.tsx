@@ -1,207 +1,116 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-type LastfmWidgetProps = {
-  username: string
-  apiKey: string
+type RecentTrack = {
+  name: string
+  artist: { '#text': string }
 }
 
-type LastfmTrack = {
+type RecentTracksResponse = {
+  recenttracks?: {
+    track?: RecentTrack | RecentTrack[]
+  }
+}
+
+type Listening = {
   name: string
   artist: string
-  album: string
-  imageUrl: string | null
-  url: string
-  playcount?: string
 }
 
-type LastfmApiImage = {
-  '#text': string
-  size: string
-}
+const API_KEY = import.meta.env.VITE_LASTFM_API_KEY as string | undefined
+const USERNAME = import.meta.env.VITE_LASTFM_USERNAME as string | undefined
+const PROFILE_URL = USERNAME ? `https://www.last.fm/user/${USERNAME}` : undefined
+const POLL_INTERVAL_MS = 90_000
 
-type LastfmTopTrack = {
-  name: string
-  url: string
-  playcount?: string
-  artist: {
-    name: string
-  }
-  image?: LastfmApiImage[]
-}
-
-type LastfmTrackInfo = {
-  name: string
-  url: string
-  artist: {
-    name: string
-  }
-  album: {
-    title?: string
-    image?: LastfmApiImage[]
-  }
-}
-
-type LastfmApiResponse = {
-  toptracks?: {
-    track?: LastfmTopTrack | LastfmTopTrack[]
-  }
-}
-
-type LastfmTrackInfoResponse = {
-  track?: LastfmTrackInfo
-}
-
-function getPreferredImage(images: LastfmApiImage[] = []) {
-  const preferredImage =
-    images.find((image) => image.size === 'extralarge' && image['#text']) ??
-    images.find((image) => image.size === 'large' && image['#text']) ??
-    images.find((image) => image['#text'])
-
-  return preferredImage?.['#text'] || null
-}
-
-function normalizeTopTrack(track: LastfmTopTrack, trackInfo?: LastfmTrackInfo): LastfmTrack {
-  const albumTitle = trackInfo?.album?.title || 'Unknown album'
-  const albumImage = getPreferredImage(trackInfo?.album?.image)
-
+function normalize(track: RecentTrack): Listening {
   return {
     name: track.name,
-    artist: track.artist.name,
-    album: albumTitle,
-    imageUrl: albumImage || getPreferredImage(track.image),
-    url: track.url,
-    playcount: track.playcount,
+    artist: track.artist['#text'],
   }
 }
 
-async function fetchTrackInfo(apiKey: string, artist: string, track: string, signal: AbortSignal) {
-  const url = new URL('https://ws.audioscrobbler.com/2.0/')
-  url.searchParams.set('method', 'track.getInfo')
-  url.searchParams.set('api_key', apiKey)
-  url.searchParams.set('artist', artist)
-  url.searchParams.set('track', track)
-  url.searchParams.set('autocorrect', '1')
-  url.searchParams.set('format', 'json')
+function LastfmWidget() {
+  const [listening, setListening] = useState<Listening | null>(null)
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
+  const [failed, setFailed] = useState(false)
 
-  const response = await fetch(url, { signal })
+  const load = useCallback(async (signal?: AbortSignal) => {
+    if (!API_KEY || !USERNAME) return
 
-  if (!response.ok) {
-    throw new Error(`Last.fm track info request failed with ${response.status}`)
-  }
+    try {
+      const url = new URL('https://ws.audioscrobbler.com/2.0/')
+      url.searchParams.set('method', 'user.getrecenttracks')
+      url.searchParams.set('user', USERNAME)
+      url.searchParams.set('api_key', API_KEY)
+      url.searchParams.set('limit', '1')
+      url.searchParams.set('format', 'json')
 
-  const data = (await response.json()) as LastfmTrackInfoResponse
-  return data.track
-}
+      const response = await fetch(url, { signal })
+      if (!response.ok) throw new Error(`Last.fm request failed with ${response.status}`)
 
-function LastfmWidget({ username, apiKey }: LastfmWidgetProps) {
-  const [track, setTrack] = useState<LastfmTrack | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+      const data = (await response.json()) as RecentTracksResponse
+      const rawTrack = Array.isArray(data.recenttracks?.track)
+        ? data.recenttracks.track[0]
+        : data.recenttracks?.track
+
+      if (!rawTrack) throw new Error('no scrobbles')
+
+      setListening(normalize(rawTrack))
+      setHasLoadedOnce(true)
+    } catch {
+      if (signal?.aborted) return
+      // First load failed → widget stays hidden. Poll failure after success → keep last data.
+      setFailed((wasFailed) => wasFailed || !hasLoadedOnce)
+    }
+  }, [hasLoadedOnce])
 
   useEffect(() => {
+    if (!API_KEY || !USERNAME) return
+
     const controller = new AbortController()
+    load(controller.signal)
 
-    const loadTrack = async () => {
-      try {
-        setIsLoading(true)
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        load(controller.signal)
+      }
+    }, POLL_INTERVAL_MS)
 
-        const url = new URL('https://ws.audioscrobbler.com/2.0/')
-        url.searchParams.set('method', 'user.gettoptracks')
-        url.searchParams.set('user', username)
-        url.searchParams.set('api_key', apiKey)
-        url.searchParams.set('period', '1month')
-        url.searchParams.set('limit', '1')
-        url.searchParams.set('format', 'json')
-
-        const response = await fetch(url, { signal: controller.signal })
-
-        if (!response.ok) {
-          throw new Error(`Last.fm request failed with ${response.status}`)
-        }
-
-        const data = (await response.json()) as LastfmApiResponse
-        const rawTrack = Array.isArray(data.toptracks?.track)
-          ? data.toptracks.track[0]
-          : data.toptracks?.track
-
-        if (!rawTrack) {
-          setTrack(null)
-          return
-        }
-
-        let trackInfo: LastfmTrackInfo | undefined
-
-        try {
-          trackInfo = await fetchTrackInfo(apiKey, rawTrack.artist.name, rawTrack.name, controller.signal)
-        } catch (trackInfoError) {
-          if (!controller.signal.aborted) {
-            console.error('Failed to load Last.fm track info', trackInfoError)
-          }
-        }
-
-        setTrack(normalizeTopTrack(rawTrack, trackInfo))
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return
-        }
-
-        console.error('Failed to load Last.fm track', error)
-        setTrack(null)
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoading(false)
-        }
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        load(controller.signal)
       }
     }
 
-    loadTrack()
+    document.addEventListener('visibilitychange', handleVisibility)
 
     return () => {
       controller.abort()
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [apiKey, username])
+  }, [load])
 
-  if (isLoading) {
-    return (
-      <div className='music-widget container' aria-live='polite'>
-        <div className='music-widget__shell'>
-          <div className='music-widget__cover music-widget__cover--placeholder' />
-          <div className='music-widget__meta'>
-            <p className='music-widget__eyebrow'>Loading top track</p>
-            <p className='music-widget__title'>Connecting to Last.fm</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (!track) {
-    return null
-  }
+  if (!API_KEY || !USERNAME || (failed && !hasLoadedOnce) || !listening) return null
 
   return (
-    <div className='music-widget container'>
+    <div className='music-widget music-widget--floating'>
       <a
         className='music-widget__shell'
-        href={track.url}
+        href={PROFILE_URL}
         target='_blank'
         rel='noopener noreferrer'
+        title='Open on Last.fm'
       >
-        {track.imageUrl ? (
-          <img
-            src={track.imageUrl}
-            alt={`${track.album} cover art`}
-            className='music-widget__cover'
-            loading='lazy'
-          />
-        ) : (
-          <div className='music-widget__cover music-widget__cover--placeholder' aria-hidden='true' />
-        )}
-
-        <div className='music-widget__meta'>
-          <h2 className='music-widget__title'>{track.name}</h2>
-          <p className='music-widget__detail'>{track.artist}</p>
-          <p className='music-widget__detail'>{track.album}</p>
-        </div>
+        <p className='music-widget__eyebrow'>
+          <span className='music-widget__bars' aria-hidden='true'>
+            <span />
+            <span />
+            <span />
+          </span>
+          Recent Track
+        </p>
+        <p className='music-widget__title'>{listening.name}</p>
+        <p className='music-widget__detail'>{listening.artist}</p>
       </a>
     </div>
   )

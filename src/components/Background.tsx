@@ -97,6 +97,9 @@ function Background() {
       let currentY = targetY
       let lastPointerMoveAt = performance.now()
       let idlePhase = 0
+      let wasIdle = false
+      let idleAnchorX = currentX
+      let idleAnchorY = currentY
 
       displacementSprite.position.set(currentX - 25, currentY)
 
@@ -113,18 +116,31 @@ function Background() {
 
       app.ticker.add((time) => {
         const idleDuration = performance.now() - lastPointerMoveAt
-        const isIdle = idleDuration > 1200
+        const isIdle = idleDuration > 120
 
         if (isIdle) {
+          if (!wasIdle) {
+            // Anchor the orbit at wherever the cursor left the blob.
+            idlePhase = 0
+            idleAnchorX = currentX
+            idleAnchorY = currentY
+            wasIdle = true
+          }
+
           idlePhase += time.deltaTime * 0.01
 
-          const centerX = app.screen.width * 0.5
-          const centerY = app.screen.height * 0.5
           const orbitX = Math.min(app.screen.width * 0.22, 220)
           const orbitY = Math.min(app.screen.height * 0.16, 160)
 
-          targetX = centerX + Math.cos(idlePhase) * orbitX
-          targetY = centerY + Math.sin(idlePhase * 0.78) * orbitY
+          // cos(0) - 1 = 0 and its derivative (-sin(0)) is also 0, so both
+          // axes start exactly at the anchor with zero velocity — the orbit
+          // grows organically out of the anchor point instead of pulling
+          // toward some unrelated point on a fixed ellipse the moment idle
+          // begins.
+          targetX = idleAnchorX + (Math.cos(idlePhase) - 1) * orbitX
+          targetY = idleAnchorY + (Math.cos(idlePhase * 0.78) - 1) * orbitY
+        } else {
+          wasIdle = false
         }
 
         const easing = 1 - Math.pow(1 - 0.14, time.deltaTime)
