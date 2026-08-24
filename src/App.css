@@ -96,6 +96,28 @@ p a:hover {
   border-bottom: 1px solid var(--text-hover);
 }
 
+/* Scoped to prose links, matching GLITCH_SELECTOR in PageLayout. */
+.case-study__description a:hover,
+.home-intro a:not(.music-widget__shell):not(.button-link):hover {
+  animation: link-glitch 0.5s steps(10, jump-end);
+}
+
+@keyframes link-glitch {
+  0%, 100% { opacity: 1; border-bottom-color: var(--text-hover); }
+  20% { opacity: 0.3; border-bottom-color: var(--text-secondary); }
+  40% { opacity: 1; border-bottom-color: var(--text-hover); }
+  55% { opacity: 0.4; border-bottom-color: var(--text-secondary); }
+  70% { opacity: 1; border-bottom-color: var(--text-hover); }
+  85% { opacity: 0.5; border-bottom-color: var(--text-hover); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .case-study__description a:hover,
+  .home-intro a:not(.music-widget__shell):not(.button-link):hover {
+    animation: none;
+  }
+}
+
 li a {
   text-decoration: none;
   border-bottom: 1px solid var(--text-secondary);
@@ -580,6 +602,46 @@ button:hover,
 }
 
 /* Site footer */
+/* Contact links pinned to the top-right of the frame — same set as the footer */
+.top-links {
+  position: absolute;
+  z-index: 3;
+  top: 28px;
+  right: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 24px;
+}
+
+.top-links a {
+  font-family: var(--font-tertiary);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.top-links a:hover,
+.top-links a:focus-visible {
+  color: var(--text);
+  border-bottom-color: var(--text);
+}
+
+@media (max-width: 640px) {
+  .top-links {
+    top: 16px;
+    right: 16px;
+    gap: 2px 14px;
+    max-width: calc(100% - 140px);
+  }
+
+  .top-links a {
+    font-size: 0.75rem;
+  }
+}
+
 .site-footer {
   width: 100%;
   margin-top: 160px;

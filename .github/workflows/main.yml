@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+  # Activities are baked in at build time, so redeploy daily to pick up
+  # new rides and runs without needing a commit.
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -36,6 +41,10 @@ jobs:
         env:
           VITE_LASTFM_USERNAME: ${{ secrets.VITE_LASTFM_USERNAME }}
           VITE_LASTFM_API_KEY: ${{ secrets.VITE_LASTFM_API_KEY }}
+          # Server-side only — these never reach the bundle, they're used by
+          # scripts/fetch-activities.mjs to write public/activities.json.
+          INTERVALS_API_KEY: ${{ secrets.INTERVALS_API_KEY }}
+          INTERVALS_ATHLETE_ID: ${{ secrets.INTERVALS_ATHLETE_ID }}
         run: pnpm build
 
       - name: Set up SSH

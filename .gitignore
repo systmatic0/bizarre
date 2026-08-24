@@ -23,3 +23,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Generated at build time by scripts/fetch-activities.mjs
+public/activities.json

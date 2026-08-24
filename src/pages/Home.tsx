@@ -4,6 +4,7 @@ import hologramRiv from '../assets/hologram.riv?url'
 import { Link } from 'react-router-dom'
 import CaseStudy from '../components/CaseStudy'
 import LastfmWidget from '../components/LastfmWidget'
+import ActivityWidget from '../components/ActivityWidget'
 
 
 function Home() {
@@ -474,6 +475,8 @@ function Home() {
           />
         </div>
       </section>
+
+      <ActivityWidget />
     </div>
   )
 }
