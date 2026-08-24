@@ -191,9 +191,14 @@
     padding: 0.75rem;
   }
 
+  /* Collapsed width is pinned rather than derived from the item width, so it
+     stays put regardless of how many items the menu holds. The hover and
+     focus rules repeat it to keep mobile from expanding on anything but an
+     explicit tap. */
+  .floating-nav-container,
   .floating-nav-container:hover,
   .floating-nav-container:focus-within {
-    width: var(--floating-nav-item-width);
+    width: 120px;
   }
 
   .floating-nav-container.is-expanded {
@@ -201,7 +206,7 @@
   }
 
   .floating-nav-container:not(.is-expanded):focus-within {
-    width: var(--floating-nav-item-width);
+    width: 120px;
   }
 
   .floating-nav-container:hover .floating-nav-toggle,

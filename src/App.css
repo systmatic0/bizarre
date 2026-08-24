@@ -96,9 +96,48 @@ p a:hover {
   border-bottom: 1px solid var(--text-hover);
 }
 
+.button-row__icons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+/* Icon buttons beside the intro's text buttons: square so the 50px radius
+   renders a full circle on hover, matching the hamburger's pill. Bare by
+   default — the pill only appears on hover. Colour is set here because the
+   base `a` rule in index.css would otherwise tint them. The transparent
+   border keeps the box the same size in both states, so nothing shifts. */
+.icon-link {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 50px;
+  box-sizing: border-box;
+  transition: 0.2s;
+}
+
+.icon-link:hover {
+  background: #fff;
+  color: black;
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.4);
+  border: 1px solid transparent;
+}
+
+.icon-link:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
+}
+
 /* Scoped to prose links, matching GLITCH_SELECTOR in PageLayout. */
 .case-study__description a:hover,
-.home-intro a:not(.music-widget__shell):not(.button-link):hover {
+.home-intro a:not(.music-widget__shell):not(.button-link):not(.icon-link):hover {
   animation: link-glitch 0.5s steps(10, jump-end);
 }
 
@@ -113,7 +152,7 @@ p a:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .case-study__description a:hover,
-  .home-intro a:not(.music-widget__shell):not(.button-link):hover {
+  .home-intro a:not(.music-widget__shell):not(.button-link):not(.icon-link):hover {
     animation: none;
   }
 }
@@ -364,6 +403,7 @@ button:hover,
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
   gap: 16px;
 }
 
@@ -602,46 +642,6 @@ button:hover,
 }
 
 /* Site footer */
-/* Contact links pinned to the top-right of the frame — same set as the footer */
-.top-links {
-  position: absolute;
-  z-index: 3;
-  top: 28px;
-  right: 32px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px 24px;
-}
-
-.top-links a {
-  font-family: var(--font-tertiary);
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.top-links a:hover,
-.top-links a:focus-visible {
-  color: var(--text);
-  border-bottom-color: var(--text);
-}
-
-@media (max-width: 640px) {
-  .top-links {
-    top: 16px;
-    right: 16px;
-    gap: 2px 14px;
-    max-width: calc(100% - 140px);
-  }
-
-  .top-links a {
-    font-size: 0.75rem;
-  }
-}
-
 .site-footer {
   width: 100%;
   margin-top: 160px;
@@ -686,9 +686,19 @@ button:hover,
   max-width: 220px;
 }
 
+/* Hangs further off the avatar's corner on a phone, where the hero is a
+   bigger share of the screen. Width is capped so a long track title can't
+   push the badge past the edge. */
 @media (max-width: 640px) {
   .music-widget--floating {
-    display: none;
+    transform: translate(50%, -40%);
+    max-width: 190px;
+  }
+
+  .music-widget__title,
+  .music-widget__detail {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 

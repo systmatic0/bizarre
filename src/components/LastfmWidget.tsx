@@ -107,7 +107,7 @@ function LastfmWidget() {
             <span />
             <span />
           </span>
-          Recent Track
+          Playlist
         </p>
         <p className='music-widget__title'>{listening.name}</p>
         <p className='music-widget__detail'>{listening.artist}</p>

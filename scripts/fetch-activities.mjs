@@ -51,23 +51,33 @@ async function getActivities() {
   )
 }
 
-// The streams response isn't documented in detail, so accept the shapes it
-// plausibly takes: a list of stream objects, a map keyed by type, and either a
-// combined `latlng` stream or separate `lat`/`lng` ones.
+// Intervals.icu returns a list of stream objects, and splits a coordinate pair
+// across two parallel arrays: `data` holds the latitudes and `data2` the
+// longitudes. The other shapes below are kept as cheap fallbacks in case the
+// response ever changes — none of it is contractually documented.
 function extractPoints(streams) {
-  const byType = Array.isArray(streams)
-    ? Object.fromEntries(streams.filter((s) => s?.type).map((s) => [s.type, s.data]))
-    : Object.fromEntries(Object.entries(streams ?? {}).map(([key, value]) => [key, value?.data ?? value]))
+  const list = Array.isArray(streams)
+    ? streams
+    : Object.entries(streams ?? {}).map(([type, value]) => ({ type, ...(value ?? {}) }))
 
-  const latlng = byType.latlng
-  if (Array.isArray(latlng) && Array.isArray(latlng[0])) {
-    return latlng
+  const byType = new Map(list.filter((stream) => stream?.type).map((stream) => [stream.type, stream]))
+
+  const latlng = byType.get('latlng')
+  if (Array.isArray(latlng?.data)) {
+    // The shape Intervals.icu actually returns.
+    if (Array.isArray(latlng.data2)) {
+      return latlng.data.map((lat, index) => [lat, latlng.data2[index]])
+    }
+    // Strava-style: one array of [lat, lng] pairs.
+    if (Array.isArray(latlng.data[0])) {
+      return latlng.data
+    }
   }
 
-  const lat = byType.lat ?? byType.latitude
-  const lng = byType.lng ?? byType.lon ?? byType.longitude
-  if (Array.isArray(lat) && Array.isArray(lng)) {
-    return lat.map((value, index) => [value, lng[index]])
+  const lat = byType.get('lat') ?? byType.get('latitude')
+  const lng = byType.get('lng') ?? byType.get('lon') ?? byType.get('longitude')
+  if (Array.isArray(lat?.data) && Array.isArray(lng?.data)) {
+    return lat.data.map((value, index) => [value, lng.data[index]])
   }
 
   return []

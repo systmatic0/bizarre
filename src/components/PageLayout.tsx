@@ -4,7 +4,6 @@ import Background from './Background'
 import Logo from './Logo'
 import Navbar from './Navbar'
 import SiteFooter from './SiteFooter'
-import TopLinks from './TopLinks'
 import { scrambleElementOnce } from './scrambleText'
 import { Link } from 'react-router-dom'
 
@@ -14,10 +13,10 @@ type PageLayoutProps = {
 
 // The scramble glitch belongs to prose links only: the home intro copy and a
 // case study's description. Not buttons, not the links in a case study's meta
-// table, and not the Last.fm widget — its shell is an anchor too, and
-// scrambling it would garble the now-playing text.
+// table, not the icon buttons, and not the Last.fm widget — its shell is an
+// anchor too, and scrambling it would garble the now-playing text.
 const GLITCH_SELECTOR =
-  '.home-intro a:not(.music-widget__shell):not(.button-link), .case-study__description a'
+  '.home-intro a:not(.music-widget__shell):not(.button-link):not(.icon-link), .case-study__description a'
 
 function PageLayout({ children }: PageLayoutProps) {
   const location = useLocation()
@@ -154,7 +153,6 @@ function PageLayout({ children }: PageLayoutProps) {
             <Logo className='logo-icon' />
           </Link>
         </div>
-        <TopLinks />
         <div ref={scrollRef} className='app-scroll'>
           <div ref={contentRef} className={contentClassName}>
             {children}

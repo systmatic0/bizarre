@@ -5,6 +5,18 @@ import { Link } from 'react-router-dom'
 import CaseStudy from '../components/CaseStudy'
 import LastfmWidget from '../components/LastfmWidget'
 import ActivityWidget from '../components/ActivityWidget'
+import { Figma, Github } from 'lucide-react'
+import { contactLinks } from '../components/contactLinks'
+
+// GitHub and Figma as bare icons alongside the intro's buttons — recognisable
+// enough not to need a label. Pulled from the same list the footer uses so the
+// hrefs stay single-sourced.
+const findLink = (label: string) => contactLinks.find((link) => link.label === label)!
+
+const iconLinks = [
+  { ...findLink('GitHub'), Icon: Github },
+  { ...findLink('Figma'), Icon: Figma },
+]
 
 
 function Home() {
@@ -77,13 +89,16 @@ function Home() {
           </div>
 
           <LastfmWidget />
+          <ActivityWidget />
         </div>
 
         <div className='page-stack'>
           <div className='page-stack--tight'>
             <h1>Hello there explorer.</h1>
             <p>My name is Karl, I do product design and web development. On my journey, I've led design process for user-centric products and design systems.</p>
-            <p>(Been designing for two <a href='https://www.lift99.co/walloffame' target='_blank' rel='noopener noreferrer'>#EstonianMafia</a> startups.)</p>
+            <p>
+              (Been designing for two <a href='https://www.lift99.co/walloffame' target='_blank' rel='noopener noreferrer'>#EstonianMafia</a> startups.)
+            </p>
           </div>
 
           <div className='button-row'>
@@ -117,6 +132,24 @@ function Home() {
               Check out my work
             </button>
             <a href='/cv.pdf' target='_blank' rel='noopener noreferrer' className='button-link'>Read my CV</a>
+
+            {/* Grouped so the pair always wraps as one — otherwise a narrow
+                row fits one icon beside the CV button and strands the other. */}
+            <div className='button-row__icons'>
+              {iconLinks.map(({ label, href, Icon }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  aria-label={label}
+                  className='icon-link'
+                >
+                  {/* 24px and 1.75 stroke to match the floating nav's icons. */}
+                  <Icon size={24} strokeWidth={1.75} aria-hidden='true' />
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -475,8 +508,6 @@ function Home() {
           />
         </div>
       </section>
-
-      <ActivityWidget />
     </div>
   )
 }
