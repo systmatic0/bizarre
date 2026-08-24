@@ -52,7 +52,7 @@ function ActivityWidget() {
           className='activity-badge__map'
           viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
           role='img'
-          aria-label={`Route of ${track.name}`}
+          aria-label={`Map polygon`}
         >
           <path d={toSvgPath(track.points, SVG_SIZE, SVG_PADDING)} />
         </svg>
