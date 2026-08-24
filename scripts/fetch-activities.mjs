@@ -22,7 +22,13 @@ const MAX_TRACKS = 8
 // the browser, so thinning it costs nothing visible and saves a lot of bytes.
 const MAX_POINTS = 250
 
-const { INTERVALS_API_KEY, INTERVALS_ATHLETE_ID = '0' } = process.env
+const { INTERVALS_API_KEY } = process.env
+
+// `|| '0'` rather than a destructuring default: an unset GitHub Actions secret
+// still defines the variable, as an empty string, and a default only fires on
+// `undefined`. An empty id silently builds the URL `/athlete//activities`,
+// which the API answers with a 404.
+const INTERVALS_ATHLETE_ID = process.env.INTERVALS_ATHLETE_ID || '0'
 
 const authHeader = `Basic ${Buffer.from(`API_KEY:${INTERVALS_API_KEY}`).toString('base64')}`
 
