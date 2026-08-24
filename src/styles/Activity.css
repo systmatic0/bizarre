@@ -5,6 +5,7 @@
   flex-direction: row;
   align-items: center;
   gap: 10px;
+  text-align: left;
   padding: 10px 14px;
   border-radius: 12px;
   border: 1px solid var(--border);
@@ -28,10 +29,11 @@
   vector-effect: non-scaling-stroke;
 }
 
+/* Reads as an eyebrow, matching "Playlist" on the Last.fm badge. */
 .activity-badge__title {
-  font-size: 0.85rem;
-  font-weight: 500;
+  font-size: 0.7rem;
   color: var(--text);
+  letter-spacing: 0.08em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -52,6 +54,12 @@
 @media (max-width: 640px) {
   .activity-badge--floating {
     transform: translate(-50%, 40%);
-    max-width: 190px;
+    max-width: 160px;
+  }
+
+  .activity-badge__title {
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
   }
 }

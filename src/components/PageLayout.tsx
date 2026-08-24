@@ -5,6 +5,7 @@ import Logo from './Logo'
 import Navbar from './Navbar'
 import SiteFooter from './SiteFooter'
 import { scrambleElementOnce } from './scrambleText'
+import { scrollAppToTop } from './scrollToTop'
 import { Link } from 'react-router-dom'
 
 type PageLayoutProps = {
@@ -149,7 +150,17 @@ function PageLayout({ children }: PageLayoutProps) {
       <div className='app-frame'>
         <Background />
         <div className='logo-frame'>
-          <Link to="/">
+          <Link
+            to='/'
+            aria-label='Home'
+            onClick={(event) => {
+              // Already home: the router would no-op, so scroll back up here.
+              if (location.pathname !== '/') return
+
+              event.preventDefault()
+              scrollAppToTop()
+            }}
+          >
             <Logo className='logo-icon' />
           </Link>
         </div>

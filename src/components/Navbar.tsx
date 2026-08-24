@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Camera, Home, Menu, type LucideIcon } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { scrollAppToTop } from './scrollToTop'
 import '../styles/Navbar.css'
 
 type NavItem = {
@@ -283,6 +284,13 @@ function Navbar() {
 								event.preventDefault()
 								event.stopPropagation()
 								return
+							}
+
+							// Tapping the page you're already on stays interactive: the
+							// router would no-op, so send the reader back to the top instead.
+							if (type === 'internal' && location.pathname === to) {
+								event.preventDefault()
+								scrollAppToTop()
 							}
 
 							if (isMobile) {

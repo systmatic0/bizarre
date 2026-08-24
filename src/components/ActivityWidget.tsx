@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { toSvgPath, type LatLng } from './projectRoute'
+import TiltCard from './TiltCard'
 import '../styles/Activity.css'
 
 type Track = {
@@ -45,7 +46,8 @@ function ActivityWidget() {
 
   return (
     <div className='activity-badge activity-badge--floating'>
-      <div className='activity-badge__shell'>
+      <TiltCard>
+        <div className='activity-badge__shell'>
         <svg
           className='activity-badge__map'
           viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
@@ -56,7 +58,8 @@ function ActivityWidget() {
         </svg>
 
         <p className='activity-badge__title'>Recent track</p>
-      </div>
+        </div>
+      </TiltCard>
     </div>
   )
 }

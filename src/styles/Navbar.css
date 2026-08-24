@@ -184,8 +184,14 @@
 
 @media (max-width: 640px) {
   .floating-nav {
-    --floating-nav-expanded-width: min(320px, calc(100vw - 1.5rem));
-    --floating-nav-item-width: calc(var(--floating-nav-expanded-width) / var(--floating-nav-item-count, 4));
+    /* Hug the items instead of stretching to a fixed width: each item keeps a
+       fixed touch target and the pill is only as wide as they need, capped so
+       a long menu still fits the viewport. */
+    --floating-nav-item-width: 120px;
+    --floating-nav-expanded-width: min(
+      calc(var(--floating-nav-item-count, 4) * var(--floating-nav-item-width)),
+      calc(100vw - 1.5rem)
+    );
     --floating-nav-item-height: 56px;
     bottom: 0.25rem;
     padding: 0.75rem;

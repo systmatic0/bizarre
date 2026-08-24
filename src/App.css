@@ -407,11 +407,20 @@ button:hover,
   gap: 16px;
 }
 
+/* Wrapper the hover tilt is applied to — rounded so the glare sweep clips to
+   the badge's own corners. */
+.tilt-card {
+  border-radius: 12px;
+  will-change: transform;
+}
+
 .music-widget__shell {
   display: flex;
   flex-direction: column;
   gap: 3px;
   align-items: flex-start;
+  /* The hero centers its text; the badge reads as its own block, left-aligned. */
+  text-align: left;
   padding: 10px 14px;
   text-decoration: none;
   border-radius: 12px;
@@ -692,13 +701,21 @@ button:hover,
 @media (max-width: 640px) {
   .music-widget--floating {
     transform: translate(50%, -40%);
-    max-width: 190px;
+    width: 160px;
+    max-width: 160px;
   }
 
+  /* Narrow badge, so a long title wraps onto another line rather than being
+     clipped away — then gets cut off with an ellipsis after the second. */
   .music-widget__title,
   .music-widget__detail {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
   }
 }
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import TiltCard from './TiltCard'
 
 type RecentTrack = {
   name: string
@@ -94,7 +95,8 @@ function LastfmWidget() {
 
   return (
     <div className='music-widget music-widget--floating'>
-      <a
+      <TiltCard>
+        <a
         className='music-widget__shell'
         href={PROFILE_URL}
         target='_blank'
@@ -111,7 +113,8 @@ function LastfmWidget() {
         </p>
         <p className='music-widget__title'>{listening.name}</p>
         <p className='music-widget__detail'>{listening.artist}</p>
-      </a>
+        </a>
+      </TiltCard>
     </div>
   )
 }
