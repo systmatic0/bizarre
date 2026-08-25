@@ -53,7 +53,7 @@
    adjustment the Last.fm badge makes. */
 @media (max-width: 640px) {
   .activity-badge--floating {
-    transform: translate(-50%, 40%);
+    transform: translate(-30%, 40%);
     max-width: 150px;
   }
 

@@ -10,6 +10,9 @@ gsap.registerPlugin(ScrollTrigger)
 //
 // The page scrolls inside .app-scroll, not the window, so ScrollTrigger has to
 // be told which element to watch.
+// How long the page must sit still before it's safe to re-measure.
+const SCROLL_IDLE_MS = 250
+
 export function useCaseStudyReveal() {
   useEffect(() => {
     const scroller = document.querySelector<HTMLElement>('.app-scroll')
@@ -66,20 +69,30 @@ export function useCaseStudyReveal() {
 
     // The screenshots are lazy-loaded, so at mount the page is a fraction of
     // its final height and every block sits near the top — ScrollTrigger reads
-    // their start points as already passed and fires them all at once, off
-    // screen. Re-measuring whenever the content resizes is what keeps the
-    // blocks further down honest. Coalesced into a frame so a burst of images
-    // landing together costs one refresh.
-    let refreshFrame: number | null = null
+    // their start points as already passed. Re-measuring as the content grows
+    // is what keeps the blocks further down honest.
+    //
+    // But refresh() forces a synchronous reflow and re-reads scroll position,
+    // so doing it as each image lands makes a mobile scroll stutter — that's
+    // exactly when images are loading. So: never refresh mid-scroll, and wait
+    // for a lull afterwards. The reveal doesn't need precise measurements to
+    // be correct — onEnter checks real visibility before playing — so a late
+    // refresh costs nothing.
+    let idleTimeout: number | null = null
+
+    const runRefresh = () => {
+      idleTimeout = null
+      ScrollTrigger.refresh()
+    }
 
     const refresh = () => {
-      if (refreshFrame !== null) return
-
-      refreshFrame = window.requestAnimationFrame(() => {
-        refreshFrame = null
-        ScrollTrigger.refresh()
-      })
+      if (idleTimeout !== null) window.clearTimeout(idleTimeout)
+      idleTimeout = window.setTimeout(runRefresh, SCROLL_IDLE_MS)
     }
+
+    // Address bar show/hide on iOS and Android resizes the viewport constantly
+    // while scrolling; without this GSAP treats each as a resize to react to.
+    ScrollTrigger.config({ ignoreMobileResize: true })
 
     const content = document.querySelector<HTMLElement>('.app-content')
     const observer = content ? new ResizeObserver(refresh) : null
@@ -94,16 +107,20 @@ export function useCaseStudyReveal() {
       image.addEventListener('error', refresh)
     })
 
+    // Any scroll pushes a pending refresh back, so one never lands mid-gesture.
+    scroller.addEventListener('scroll', refresh, { passive: true })
+
     refresh()
     window.addEventListener('load', refresh)
 
     return () => {
-      if (refreshFrame !== null) window.cancelAnimationFrame(refreshFrame)
+      if (idleTimeout !== null) window.clearTimeout(idleTimeout)
       observer?.disconnect()
       images.forEach((image) => {
         image.removeEventListener('load', refresh)
         image.removeEventListener('error', refresh)
       })
+      scroller.removeEventListener('scroll', refresh)
       window.removeEventListener('load', refresh)
       context.revert()
     }
