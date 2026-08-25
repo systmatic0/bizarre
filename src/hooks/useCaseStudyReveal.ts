@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useLayoutEffect } from 'react'
 import gsap from 'gsap'
 
 // Fades each case study's screenshots up as they come into view. The copy is
@@ -13,13 +13,14 @@ import gsap from 'gsap'
 // images long after you've scrolled past them. IntersectionObserver just
 // reports what's actually on screen, measuring nothing.
 //
-// The images are also not pre-hidden: a block is faded from transparent only
-// once it enters, so a failure anywhere here leaves the screenshots visible
-// rather than blank.
-const REVEAL_THRESHOLD = 0.12
+// The blocks are hidden in a layout effect — before the browser paints — so a
+// block never shows at full opacity and then snap to transparent as the
+// observer catches up. Hiding and observing happen in the same synchronous
+// pass, so there's no window where they could be left hidden with nothing
+// watching to reveal them.
 
 export function useCaseStudyReveal() {
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scroller = document.querySelector<HTMLElement>('.app-scroll')
     if (!scroller) return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
@@ -36,28 +37,28 @@ export function useCaseStudyReveal() {
             const items = block.querySelectorAll(':scope > .case-study__media-item')
             if (!items.length) return
 
-            gsap.fromTo(
-              items,
-              { y: 40, opacity: 0 },
-              {
-                y: 0,
-                opacity: 1,
-                duration: 0.7,
-                // Only reads as a stagger in the three-up grids; a stacked
-                // block holds one image, where it's a no-op.
-                stagger: 0.12,
-                ease: 'power2.out',
-                clearProps: 'transform,opacity',
-              },
-            )
+            gsap.to(items, {
+              y: 0,
+              opacity: 1,
+              duration: 0.7,
+              // Only reads as a stagger in the three-up grids; a stacked
+              // block holds one image, where it's a no-op.
+              stagger: 0.12,
+              ease: 'power2.out',
+              clearProps: 'transform,opacity',
+            })
           })
         },
-        { root: scroller, threshold: REVEAL_THRESHOLD },
+        { root: scroller, threshold: 0 },
       )
 
-      document
-        .querySelectorAll<HTMLElement>('.case-study__media-block')
-        .forEach((block) => observer.observe(block))
+      document.querySelectorAll<HTMLElement>('.case-study__media-block').forEach((block) => {
+        const items = block.querySelectorAll(':scope > .case-study__media-item')
+        if (!items.length) return
+
+        gsap.set(items, { y: 40, opacity: 0 })
+        observer.observe(block)
+      })
 
       return () => observer.disconnect()
     })
