@@ -103,11 +103,11 @@ p a:hover {
   gap: 16px;
 }
 
-/* Icon buttons beside the intro's text buttons: square so the 50px radius
-   renders a full circle on hover, matching the hamburger's pill. Bare by
-   default — the pill only appears on hover. Colour is set here because the
-   base `a` rule in index.css would otherwise tint them. The transparent
-   border keeps the box the same size in both states, so nothing shifts. */
+/* Icon buttons beside the intro's text buttons. Bare by default — the pill
+   only appears on hover, shaped by the 50px radius to match the floating
+   nav's items. Colour is set here because the base `a` rule in index.css
+   would otherwise tint them. The transparent border keeps the box the same
+   size in both states, so nothing shifts. */
 .icon-link {
   width: 56px;
   height: 56px;
@@ -133,6 +133,16 @@ p a:hover {
 .icon-link:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 4px;
+}
+
+/* Desktop: widen the hover pill to the floating nav's item width (the 96px
+   --floating-nav-item-width in Navbar.css), so the two read as the same
+   control. Left square on mobile, where the nav's items are a different
+   width again and the row has less room. */
+@media (min-width: 641px) {
+  .icon-link {
+    width: 96px;
+  }
 }
 
 /* Scoped to prose links, matching GLITCH_SELECTOR in PageLayout. */
@@ -412,6 +422,52 @@ button:hover,
 .tilt-card {
   border-radius: 12px;
   will-change: transform;
+  /* The library applies this same transition imperatively on enter/leave, but
+     the Last.fm badge overlaps the Rive canvas, whose mouseout plumbing in
+     Home.tsx can swallow the event React builds onMouseLeave from — leaving
+     the badge to snap back untransitioned. Declaring it here means the ease
+     home doesn't depend on that event landing. Matches the library's own
+     duration and easing so a normal leave looks identical. */
+  transition: transform 900ms cubic-bezier(0.03, 0.98, 0.52, 0.99);
+}
+
+/* Outer grab layer: catches the pointer so a held drag keeps steering the
+   badge after the cursor leaves it. */
+.tilt-card-grab {
+  /* Each badge's own wrapper sets the width (fixed or hug); just fill it. */
+  width: 100%;
+  cursor: grab;
+  /* Vertical stays with the browser so a finger on the badge still scrolls
+     the page; sideways is left to the tilt. */
+  touch-action: pan-y;
+}
+
+.tilt-card-grab:active {
+  cursor: grabbing;
+}
+
+/* The library sets a 900ms transition on enter/leave, which is right for the
+   hover spring but turns a drag into a laggy smear — the badge would trail
+   far behind the cursor. Track the pointer 1:1 while held instead, then let
+   the transition come back for the release. It also keeps the hover scale,
+   which the library drops when the pointer leaves the badge mid-drag. */
+.tilt-card-grab {
+  transition: transform 0.2s ease;
+}
+
+.tilt-card-grab.is-dragging {
+  transform: scale(1.04);
+}
+
+.tilt-card-grab.is-dragging .tilt-card {
+  transition-duration: 0s !important;
+}
+
+/* Dragging a badge shouldn't select its text or start a native link drag. */
+.tilt-card-grab:active,
+.tilt-card-grab:active * {
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .music-widget__shell {
@@ -701,8 +757,12 @@ button:hover,
 @media (max-width: 640px) {
   .music-widget--floating {
     transform: translate(50%, -40%);
-    width: 160px;
-    max-width: 160px;
+    width: 150px;
+    max-width: fit-content;
+  }
+
+  .music-widget__shell {
+    padding: 8px;
   }
 
   /* Narrow badge, so a long title wraps onto another line rather than being

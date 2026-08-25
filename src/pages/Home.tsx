@@ -7,6 +7,7 @@ import LastfmWidget from '../components/LastfmWidget'
 import ActivityWidget from '../components/ActivityWidget'
 import { Figma, Github } from 'lucide-react'
 import { contactLinks } from '../components/contactLinks'
+import { useCaseStudyReveal } from '../hooks/useCaseStudyReveal'
 
 // GitHub and Figma as bare icons alongside the intro's buttons — recognisable
 // enough not to need a label. Pulled from the same list the footer uses so the
@@ -21,6 +22,8 @@ const iconLinks = [
 
 function Home() {
   const caseStudiesRef = useRef<HTMLElement | null>(null)
+
+  useCaseStudyReveal()
   const heroWrapRef = useRef<HTMLDivElement | null>(null)
   const { RiveComponent, canvas } = useRive({
     src: hologramRiv,

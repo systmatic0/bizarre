@@ -54,7 +54,11 @@
 @media (max-width: 640px) {
   .activity-badge--floating {
     transform: translate(-50%, 40%);
-    max-width: 160px;
+    max-width: 150px;
+  }
+
+  .activity-badge__shell {
+    padding: 8px;
   }
 
   .activity-badge__title {
