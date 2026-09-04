@@ -29,11 +29,11 @@
   vector-effect: non-scaling-stroke;
 }
 
-/* Reads as an eyebrow, matching "Playlist" on the Last.fm badge. */
+/* Matches .music-widget__title's style on the Last.fm badge. */
 .activity-badge__title {
-  font-size: 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 500;
   color: var(--text);
-  letter-spacing: 0.08em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

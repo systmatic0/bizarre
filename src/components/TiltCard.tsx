@@ -4,6 +4,30 @@ import Tilt from 'react-parallax-tilt'
 type TiltCardProps = {
   className?: string
   children: ReactNode
+  // The badges default to this. react-parallax-tilt maps cursor position as a
+  // percentage of the element's own box to this angle, so the same angle
+  // reads as a much bigger lean on a large box (e.g. the hero) than on a
+  // small badge — its corners travel further for the same rotation. Callers
+  // with a bigger box should pass a smaller angle to match how much the
+  // badges actually lean.
+  maxAngle?: number
+  // The glare overlay is sized once, at mouseenter, and only ever re-measured
+  // on a window resize — it has no way to notice a card that changes size for
+  // its own reasons afterward (the Last.fm badge's hover-expand popover). The
+  // size itself can be corrected (dispatching a resize event), but the
+  // glare's rendered shape only repaints on the next mousemove-driven frame,
+  // so there's a window where its raw, unmasked diamond is visible mid-resize
+  // — a caller that resizes on hover should pass false rather than chase
+  // that. Defaults true to match the two static badges' existing look.
+  glareEnable?: boolean
+  // The library scales the card up on hover, and snaps back to this any time
+  // its own mouseenter/mouseleave re-fires — which, on a card tall enough
+  // that a rotated far edge visibly drifts under a stationary cursor (the
+  // Last.fm badge's footer link, near the bottom of the expanded popover),
+  // can retrigger repeatedly and read as the whole card growing rather than
+  // settling. Passing 1 removes the scale-up so that can't happen, without
+  // needing to fix the underlying flicker itself.
+  scale?: number
 }
 
 type Angles = {
@@ -16,13 +40,10 @@ type Angles = {
 const prefersReducedMotion =
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-const HOVER_MAX_ANGLE = 12
-// Dragging leans no further than hovering does — what it adds is reach: the
-// pointer keeps steering the badge after it leaves the badge's own bounds.
-const DRAG_MAX_ANGLE = HOVER_MAX_ANGLE
-// Pixels of drag that map to the full DRAG_MAX_ANGLE lean. Roughly a badge's
-// own width, so the lean keeps up with the hand rather than needing a haul
-// across the page.
+const DEFAULT_MAX_ANGLE = 12
+// Pixels of drag that map to the full max-angle lean. Roughly a badge's own
+// width, so the lean keeps up with the hand rather than needing a haul across
+// the page.
 const DRAG_RANGE = 90
 // Movement under this reads as a click, not a drag, so the link still opens.
 const DRAG_SLOP = 4
@@ -34,7 +55,10 @@ function clamp(value: number, limit: number) {
   return Math.max(-limit, Math.min(limit, value))
 }
 
-function TiltCard({ className, children }: TiltCardProps) {
+function TiltCard({ className, children, maxAngle = DEFAULT_MAX_ANGLE, glareEnable = true, scale = 1.04 }: TiltCardProps) {
+  // Dragging leans no further than hovering does — what it adds is reach: the
+  // pointer keeps steering the badge after it leaves the badge's own bounds.
+  const dragMaxAngle = maxAngle
   // Non-null while dragging or settling: the library hands control to the
   // manual angles, so the pointer keeps steering the badge after it leaves
   // the badge's own bounds.
@@ -165,14 +189,14 @@ function TiltCard({ className, children }: TiltCardProps) {
       didDragRef.current = true
     }
 
-    const scale = DRAG_MAX_ANGLE / DRAG_RANGE
+    const scale = dragMaxAngle / DRAG_RANGE
 
     setDragAngles({
       // Drag down and the top edge leans away, matching how the hover tilt reads.
-      x: clamp(-dy * scale, DRAG_MAX_ANGLE),
-      y: clamp(dx * scale, DRAG_MAX_ANGLE),
+      x: clamp(-dy * scale, dragMaxAngle),
+      y: clamp(dx * scale, dragMaxAngle),
     })
-  }, [clearSettle])
+  }, [clearSettle, dragMaxAngle])
 
   const handlePointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     finishDrag({ x: event.clientX, y: event.clientY })
@@ -199,14 +223,14 @@ function TiltCard({ className, children }: TiltCardProps) {
       <Tilt
         className={['tilt-card', className].filter(Boolean).join(' ')}
         tiltEnable={!prefersReducedMotion}
-        tiltMaxAngleX={HOVER_MAX_ANGLE}
-        tiltMaxAngleY={HOVER_MAX_ANGLE}
+        tiltMaxAngleX={maxAngle}
+        tiltMaxAngleY={maxAngle}
         tiltAngleXManual={dragAngles?.x ?? null}
         tiltAngleYManual={dragAngles?.y ?? null}
-        scale={1.04}
+        scale={scale}
         perspective={700}
         transitionSpeed={900}
-        glareEnable={!prefersReducedMotion}
+        glareEnable={glareEnable && !prefersReducedMotion}
         glareMaxOpacity={0.18}
         glareBorderRadius='12px'
       >

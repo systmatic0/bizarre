@@ -57,7 +57,7 @@ function ActivityWidget() {
           <path d={toSvgPath(track.points, SVG_SIZE, SVG_PADDING)} />
         </svg>
 
-        <p className='activity-badge__title'>Recent trail</p>
+        <p className='activity-badge__title'>Recent vector</p>
         </div>
       </TiltCard>
     </div>

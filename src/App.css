@@ -434,8 +434,13 @@ button:hover,
 /* Outer grab layer: catches the pointer so a held drag keeps steering the
    badge after the cursor leaves it. */
 .tilt-card-grab {
-  /* Each badge's own wrapper sets the width (fixed or hug); just fill it. */
+  /* Each badge's own wrapper sets the width (fixed or hug); just fill it.
+     height: 100% does the same for the hero Rive card, which needs a real
+     height to hand down its own 100%-height canvas — it's a no-op for the
+     badges, whose wrapper has no explicit height for the percentage to
+     resolve against. */
   width: 100%;
+  height: 100%;
   cursor: grab;
   /* Vertical stays with the browser so a finger on the badge still scrolls
      the page; sideways is left to the tilt. */
@@ -443,6 +448,20 @@ button:hover,
 }
 
 .tilt-card-grab:active {
+  cursor: grabbing;
+}
+
+/* Neither badge is clickable as a whole (the Last.fm popover's footer link is
+   the only real link left in either), so a grab hand at rest reads as an
+   affordance that isn't there — a regular pointer until a drag actually
+   starts. The hero keeps the default grab/grabbing above. */
+.music-widget .tilt-card-grab,
+.activity-badge .tilt-card-grab {
+  cursor: default;
+}
+
+.music-widget .tilt-card-grab:active,
+.activity-badge .tilt-card-grab:active {
   cursor: grabbing;
 }
 
@@ -542,11 +561,15 @@ button:hover,
   }
 }
 
+/* max-width needed: shell is a flex column, sizes children to content. */
 .music-widget__title {
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--text);
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .music-widget__detail {
@@ -554,6 +577,93 @@ button:hover,
   font-weight: 500;
   color: var(--text-secondary);
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Undo the global span{} highlight style — it's meant for prose, not these
+   incidental spans (text-truncate-scroll's own wrappers, and the tag pills
+   in the expanded top-tags list, which draw their own background/border). */
+.music-widget__title span,
+.music-widget__detail span,
+.music-widget__expand-tag {
+  background: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* react-parallax-tilt writes `transition: all <speed>ms <easing>` straight onto
+   this element every time its own enter/leave fires. On the two static badges
+   that only ever means transform, but this card changes height when the
+   popover expands — so `all` animates that height too, over the tilt's much
+   longer 900ms, leaving the card's box lagging behind its own content (extra
+   space under the footer link while the tilt glitches in and out). Only the
+   transform should ever animate here; !important because the library's is an
+   inline style. */
+.music-widget .tilt-card {
+  transition-property: transform !important;
+}
+
+/* Collapsed to nothing at rest; hovering the badge (.is-expanded, set in
+   LastfmWidget alongside the marquee trigger) reveals it. grid-template-rows
+   0fr/1fr animates to the content's real height without knowing it upfront —
+   height/max-height would need a guessed cap, since the artist list's actual
+   height depends on data that hasn't loaded yet on first paint. */
+.music-widget__expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  width: 100%;
+  transition: grid-template-rows 260ms ease;
+}
+
+.music-widget--floating.is-expanded .music-widget__expand {
+  grid-template-rows: 1fr;
+}
+
+.music-widget__expand-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.music-widget__expand-heading {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.music-widget__expand-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.music-widget__expand-tag {
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.music-widget__expand-footer {
+  display: block;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.music-widget__expand-footer:hover {
+  color: var(--text-hover);
 }
 
 .container {
@@ -745,10 +855,22 @@ button:hover,
   position: absolute;
   top: 0;
   right: 0;
-  transform: translate(20%, -50%);
+  /* Fixed px, not -50%: that's half the COMPACT badge's own height (~80px),
+     picked once so it centers the small card over the avatar's corner. A
+     percentage would instead track the EXPANDED height, so growing the
+     popover taller would keep dragging this same offset further up with it —
+     the compact eyebrow/title/artist rows drifting off the top of the page
+     while only the artist list actually needs to grow downward. */
+  transform: translate(20%, -40px);
   z-index: 5;
-  width: fit-content;
-  max-width: 220px;
+  /* A fixed width, not fit-content: the marquee has to set its inner spans to
+     width: auto to scroll them, which makes the untruncated title the widest
+     thing in here and grows a content-sized badge mid-hover. Pinning the
+     width means nothing inside can change it — the badge is the same width
+     compact, expanded, and mid-scroll. Long artist names in the expanded list
+     truncate with their own ellipsis (.music-widget__expand-name) rather than
+     the badge growing to fit them. */
+  width: 220px;
 }
 
 /* Hangs further off the avatar's corner on a phone, where the hero is a

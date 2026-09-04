@@ -13,11 +13,19 @@ type PageLayoutProps = {
 }
 
 // The scramble glitch belongs to prose links only: the home intro copy and a
-// case study's description. Not buttons, not the links in a case study's meta
-// table, not the icon buttons, and not the Last.fm widget — its shell is an
-// anchor too, and scrambling it would garble the now-playing text.
+// case study's description. Not buttons, not the icon buttons, and not the
+// Last.fm widget — its shell is an anchor too, and scrambling it would garble
+// the now-playing text; its footer link sits inside the popover's
+// grid-template-rows: 1fr auto-height (see App.css), so scrambling its label
+// into wider/narrower characters would grow or shrink the popover itself.
 const GLITCH_SELECTOR =
-  '.home-intro a:not(.music-widget__shell):not(.button-link):not(.icon-link), .case-study__description a'
+  '.home-intro a:not(.music-widget__shell):not(.button-link):not(.icon-link):not(.music-widget__expand-footer), .case-study__description a'
+
+// Meta-table links (e.g. a case study's external site link) get the hover
+// glitch too, but never the scroll-into-view one below — they're off-screen
+// in the fixed side panel on desktop, so "appears in viewport" doesn't apply
+// the way it does for prose links scrolling through the main column.
+const HOVER_GLITCH_SELECTOR = `${GLITCH_SELECTOR}, .case-study__detail-value a`
 
 function PageLayout({ children }: PageLayoutProps) {
   const location = useLocation()
@@ -80,10 +88,9 @@ function PageLayout({ children }: PageLayoutProps) {
     }
   }, [location.pathname])
 
-  // Glitch a case study description link's own label on hover/focus —
-  // delegated to the scroll container so it keeps working as routes swap
-  // content. Deliberately scoped to prose links: buttons and the meta table's
-  // links are left alone.
+  // Glitch a case study description or meta-table link's own label on
+  // hover/focus — delegated to the scroll container so it keeps working as
+  // routes swap content.
   useEffect(() => {
     const container = scrollRef.current
     if (!container) return
@@ -92,7 +99,7 @@ function PageLayout({ children }: PageLayoutProps) {
     const active = new Set<HTMLElement>()
 
     const handleHover = (event: Event) => {
-      const target = (event.target as HTMLElement).closest?.(GLITCH_SELECTOR) as HTMLElement | null
+      const target = (event.target as HTMLElement).closest?.(HOVER_GLITCH_SELECTOR) as HTMLElement | null
       if (!target || active.has(target)) return
 
       active.add(target)

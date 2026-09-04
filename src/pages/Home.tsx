@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import CaseStudy from '../components/CaseStudy'
 import LastfmWidget from '../components/LastfmWidget'
 import ActivityWidget from '../components/ActivityWidget'
+import TiltCard from '../components/TiltCard'
 import { Figma, Github } from 'lucide-react'
 import { contactLinks } from '../components/contactLinks'
 import { useCaseStudyReveal } from '../hooks/useCaseStudyReveal'
@@ -87,9 +88,12 @@ function Home() {
     <div className='home-page'>
       <div className='home-intro'>
         <div ref={heroWrapRef} className='hero-rive-wrap'>
-          <div className='container hero-rive'>
+          {/* The hero is a much bigger box than the badges, so the same angle
+              would swing its corners a lot further — this brings the lean
+              back down to roughly what the badges show. */}
+          <TiltCard className='container hero-rive' maxAngle={6}>
             <RiveComponent className='hero-rive-inner' />
-          </div>
+          </TiltCard>
 
           <LastfmWidget />
           <ActivityWidget />
