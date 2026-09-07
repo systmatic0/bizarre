@@ -153,6 +153,68 @@ function TiltCard({ className, children, maxAngle = DEFAULT_MAX_ANGLE, glareEnab
 
   useEffect(() => clearSettle, [clearSettle])
 
+  // react-parallax-tilt only recomputes its rotation angle inside its own
+  // mousemove handler — it has no way to notice the card growing underneath
+  // a cursor that hasn't moved (the Last.fm/Activity badges' hover-expand
+  // popover). Left alone, the rotation stays frozen at whatever it was
+  // right before the card grew: a small angle computed against the old,
+  // compact box's dimensions, applied to a box now several times taller —
+  // technically still "tilted", but by an amount that no longer has
+  // anything to do with where the cursor actually is relative to the
+  // current card, and small enough on a large card to barely read as tilt
+  // at all. Tracking the pointer's last position here and, on the same
+  // `resize` event callers already dispatch to fix the glare (see the
+  // glareEnable doc comment above), replaying it as a synthetic mousemove
+  // forces the library to redo that calculation against the card's actual
+  // current size.
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
+
+    const trackPointer = (event: PointerEvent) => {
+      lastPointerRef.current = { x: event.clientX, y: event.clientY }
+    }
+
+    // Without this, a resize firing after the pointer has already left (the
+    // popover collapsing back down is itself what fires it, via the
+    // transitionend listeners below) would replay a stale position from
+    // when the pointer was still over the card — forcing a fresh, wrong
+    // tilt angle back on right as the card is trying to settle flat.
+    const clearPointer = () => {
+      lastPointerRef.current = null
+    }
+
+    const replayPointer = () => {
+      const point = lastPointerRef.current
+      // react-parallax-tilt attaches its own mousemove handler directly to
+      // its root node (.tilt-card, a child of this wrapper) — dispatching
+      // on the wrapper itself would only bubble upward, past that handler
+      // rather than through it, so this has to target .tilt-card directly.
+      const tiltNode = wrapper.querySelector<HTMLElement>('.tilt-card')
+      if (!point || !tiltNode) return
+
+      tiltNode.dispatchEvent(
+        new MouseEvent('mousemove', {
+          bubbles: true,
+          clientX: point.x,
+          clientY: point.y,
+        }),
+      )
+    }
+
+    wrapper.addEventListener('pointermove', trackPointer)
+    wrapper.addEventListener('pointerleave', clearPointer)
+    window.addEventListener('resize', replayPointer)
+
+    return () => {
+      wrapper.removeEventListener('pointermove', trackPointer)
+      wrapper.removeEventListener('pointerleave', clearPointer)
+      window.removeEventListener('resize', replayPointer)
+    }
+  }, [])
+
   const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     // Touch included: the CSS `touch-action: pan-y` on the wrapper leaves
     // vertical scrolling to the browser, so a finger dragged down the badge
@@ -167,7 +229,13 @@ function TiltCard({ className, children, maxAngle = DEFAULT_MAX_ANGLE, glareEnab
     isDraggingRef.current = true
     setIsDragging(true)
     didDragRef.current = false
-    event.currentTarget.setPointerCapture(event.pointerId)
+    // Pointer capture itself waits for handlePointerMove below, once a real
+    // drag is confirmed — capturing here unconditionally would claim every
+    // plain click too, and a captured element is where the browser sends the
+    // click event that follows, not wherever the cursor actually is. That
+    // silently ate clicks on the Last.fm popover's footer link: pointerdown
+    // captured the wrapper, so its own click (with no drag in between) fired
+    // on the wrapper instead of the link underneath the cursor.
     setDragAngles({ x: 0, y: 0 })
   }, [clearSettle])
 
@@ -185,8 +253,12 @@ function TiltCard({ className, children, maxAngle = DEFAULT_MAX_ANGLE, glareEnab
 
     const dx = event.clientX - origin.x
     const dy = event.clientY - origin.y
-    if (Math.abs(dx) > DRAG_SLOP || Math.abs(dy) > DRAG_SLOP) {
+    if (!didDragRef.current && (Math.abs(dx) > DRAG_SLOP || Math.abs(dy) > DRAG_SLOP)) {
       didDragRef.current = true
+      // Claimed now, not on pointerdown — see the comment there. By this
+      // point the gesture is confirmed to be a drag, so it's safe to start
+      // tracking the pointer even once it leaves the badge's own bounds.
+      event.currentTarget.setPointerCapture(event.pointerId)
     }
 
     const scale = dragMaxAngle / DRAG_RANGE
@@ -230,6 +302,17 @@ function TiltCard({ className, children, maxAngle = DEFAULT_MAX_ANGLE, glareEnab
         scale={scale}
         perspective={700}
         transitionSpeed={900}
+        // Overrides the library's default cubic-bezier(.03,.98,.52,.99) —
+        // that curve reaches ~98% of the way to its target within the first
+        // few percent of its duration, which is fine for a one-off
+        // enter/leave snap but reads as instant, snappy tracking when it's
+        // retargeted on every mousemove during an ordinary hover (each new
+        // retarget "finishes" almost immediately, so motion never actually
+        // eases). This one ramps up and decelerates smoothly across the
+        // whole duration instead, so continuous tracking reads as a smooth
+        // follow rather than a snap. Kept in sync with the matching
+        // cubic-bezier in .tilt-card (App.css) — see the comment there.
+        transitionEasing='cubic-bezier(0.33, 1, 0.68, 1)'
         glareEnable={glareEnable && !prefersReducedMotion}
         glareMaxOpacity={0.18}
         glareBorderRadius='12px'

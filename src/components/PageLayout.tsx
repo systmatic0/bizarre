@@ -12,20 +12,24 @@ type PageLayoutProps = {
   children: ReactNode
 }
 
-// The scramble glitch belongs to prose links only: the home intro copy and a
-// case study's description. Not buttons, not the icon buttons, and not the
-// Last.fm widget — its shell is an anchor too, and scrambling it would garble
-// the now-playing text; its footer link sits inside the popover's
-// grid-template-rows: 1fr auto-height (see App.css), so scrambling its label
-// into wider/narrower characters would grow or shrink the popover itself.
-const GLITCH_SELECTOR =
-  '.home-intro a:not(.music-widget__shell):not(.button-link):not(.icon-link):not(.music-widget__expand-footer), .case-study__description a'
+// The scramble glitch belongs to headings, not links — the home intro's own
+// "Hello there explorer." and every portfolio item's title. It runs once,
+// the moment a heading actually appears, not on hover: a link underneath the
+// cursor gets a plain colour flash instead (see .music-widget__expand-footer
+// :hover in App.css, which this now matches).
+const HEADING_GLITCH_SELECTOR = '.home-intro h1, .case-study__title'
 
-// Meta-table links (e.g. a case study's external site link) get the hover
-// glitch too, but never the scroll-into-view one below — they're off-screen
-// in the fixed side panel on desktop, so "appears in viewport" doesn't apply
-// the way it does for prose links scrolling through the main column.
-const HOVER_GLITCH_SELECTOR = `${GLITCH_SELECTOR}, .case-study__detail-value a`
+// Distance (px, from the cursor to a .container card's nearest edge) at
+// which the border glow's intensity bottoms out — see the pointermove
+// handler below. Beyond this every card just sits at GLOW_MIN_ALPHA.
+const GLOW_FALLOFF_PX = 640
+// Bright-stop opacity at zero distance (cursor on/over the card) and at
+// GLOW_FALLOFF_PX or beyond, respectively.
+const GLOW_MAX_ALPHA = 0.85
+const GLOW_MIN_ALPHA = 0.12
+// The hero's Rive card keeps its original fixed border (see .hero-rive in
+// App.css) rather than tracking the cursor like every other .container.
+const GLOW_CARD_SELECTOR = '.container:not(.hero-rive)'
 
 function PageLayout({ children }: PageLayoutProps) {
   const location = useLocation()
@@ -88,36 +92,82 @@ function PageLayout({ children }: PageLayoutProps) {
     }
   }, [location.pathname])
 
-  // Glitch a case study description or meta-table link's own label on
-  // hover/focus — delegated to the scroll container so it keeps working as
-  // routes swap content.
+  // Drives the cursor-following border glow on every .container card
+  // (App.css), all at once and continuously — not just whichever one the
+  // cursor happens to be over. Each card gets its own --glow-x/--glow-y
+  // (the cursor's position relative to that card's own box, as a
+  // percentage — read by the border's radial-gradient background as the
+  // light's centre) and --glow-alpha (how bright that light is, falling off
+  // with the cursor's distance from the card's nearest edge). Nothing here
+  // switches on or off: every card is always being recomputed from the
+  // cursor's actual position, so a card the cursor is far from just sits at
+  // GLOW_MIN_ALPHA rather than needing to be told to "reset". Direct DOM
+  // writes rather than React state — this fires on every pointermove, and
+  // re-rendering for that would be needless churn when nothing here needs
+  // React's own reconciliation. Window-level rather than delegated to the
+  // scroll container: distance is computed from each card's own
+  // getBoundingClientRect, not from event.target, so this doesn't need the
+  // cursor to be over anything in particular — cards react to the cursor
+  // passing over the navbar or any other chrome just the same.
   useEffect(() => {
-    const container = scrollRef.current
-    if (!container) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const handlePointerMove = (event: PointerEvent) => {
+      const cards = document.querySelectorAll<HTMLElement>(GLOW_CARD_SELECTOR)
 
-    const active = new Set<HTMLElement>()
+      for (const card of cards) {
+        card.classList.remove('container--gradient-resetting')
 
-    const handleHover = (event: Event) => {
-      const target = (event.target as HTMLElement).closest?.(HOVER_GLITCH_SELECTOR) as HTMLElement | null
-      if (!target || active.has(target)) return
+        const rect = card.getBoundingClientRect()
+        // Left outside the card's own box, this lands the glow's centre
+        // outside the 0-100% range — still a valid gradient position, and
+        // exactly what "the light is off to that side" should look like.
+        const xPercent = ((event.clientX - rect.left) / rect.width) * 100
+        const yPercent = ((event.clientY - rect.top) / rect.height) * 100
 
-      active.add(target)
-      const started = scrambleElementOnce(target as HTMLElement, () => active.delete(target))
-      if (started === null) active.delete(target)
+        // Distance to the rect's own nearest point — 0 in the ordinary case
+        // where the cursor is over the card, growing only once it's
+        // actually outside it, from whichever edge or corner is closest.
+        const nearestX = Math.min(Math.max(event.clientX, rect.left), rect.right)
+        const nearestY = Math.min(Math.max(event.clientY, rect.top), rect.bottom)
+        const distance = Math.hypot(event.clientX - nearestX, event.clientY - nearestY)
+        // Squared, not linear, so the last stretch of the approach reads as
+        // a distinct brightening rather than the glow being mostly "on"
+        // for the whole falloff range.
+        const proximity = Math.max(0, 1 - distance / GLOW_FALLOFF_PX) ** 2
+        const alpha = GLOW_MIN_ALPHA + (GLOW_MAX_ALPHA - GLOW_MIN_ALPHA) * proximity
+
+        card.style.setProperty('--glow-x', `${xPercent}%`)
+        card.style.setProperty('--glow-y', `${yPercent}%`)
+        card.style.setProperty('--glow-alpha', String(alpha))
+      }
     }
 
-    container.addEventListener('mouseover', handleHover)
-    container.addEventListener('focusin', handleHover)
+    // Safety net for the cursor leaving the browser viewport entirely (off
+    // the window edge) — no further pointermove ever arrives to keep fading
+    // cards out as distance grows, so this eases every card back to its
+    // resting brightness directly. relatedTarget is null exactly when the
+    // pointer left the document rather than moving onto another element
+    // within it.
+    const handlePointerOut = (event: PointerEvent) => {
+      if (event.relatedTarget !== null) return
 
+      const cards = document.querySelectorAll<HTMLElement>(GLOW_CARD_SELECTOR)
+      for (const card of cards) {
+        card.classList.add('container--gradient-resetting')
+        card.style.setProperty('--glow-alpha', String(GLOW_MIN_ALPHA))
+      }
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    document.addEventListener('pointerout', handlePointerOut)
     return () => {
-      container.removeEventListener('mouseover', handleHover)
-      container.removeEventListener('focusin', handleHover)
+      window.removeEventListener('pointermove', handlePointerMove)
+      document.removeEventListener('pointerout', handlePointerOut)
     }
   }, [])
 
-  // Glitch every case study description link once it scrolls into view —
-  // re-runs per route since the content below is remounted (fresh set) then.
+  // Glitch every heading once it actually appears — the home intro's h1 on
+  // load, each portfolio item's title as it scrolls into view. Re-runs per
+  // route since the content below is remounted (fresh set of headings) then.
   useEffect(() => {
     const contentElement = contentRef.current
     if (!contentElement) return
@@ -127,8 +177,8 @@ function PageLayout({ children }: PageLayoutProps) {
     let observer: IntersectionObserver | null = null
 
     const frame = window.requestAnimationFrame(() => {
-      const anchors = contentElement.querySelectorAll(GLITCH_SELECTOR)
-      if (!anchors.length) return
+      const headings = contentElement.querySelectorAll(HEADING_GLITCH_SELECTOR)
+      if (!headings.length) return
 
       observer = new IntersectionObserver(
         (entries, currentObserver) => {
@@ -143,7 +193,7 @@ function PageLayout({ children }: PageLayoutProps) {
         { threshold: 0.5 },
       )
 
-      anchors.forEach((anchor) => observer?.observe(anchor))
+      headings.forEach((heading) => observer?.observe(heading))
     })
 
     return () => {

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "fetch:activities": "node scripts/fetch-activities.mjs",
-    "build": "node scripts/fetch-activities.mjs && tsc -b && vite build",
+    "fetch:elevation": "node scripts/fetch-elevation.mjs",
+    "build": "node scripts/fetch-activities.mjs && node scripts/fetch-elevation.mjs && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

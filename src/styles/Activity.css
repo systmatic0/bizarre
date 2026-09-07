@@ -1,16 +1,25 @@
 /* Mirrors .music-widget on the hero: same shell, opposite corner. */
 
+/* Column so the expand popover can stack below the icon+title row rather than
+   sitting beside it. */
 .activity-badge__shell {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-start;
   text-align: left;
   padding: 10px 14px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--backgroundBlur);
   backdrop-filter: blur(var(--blur-200));
+}
+
+.activity-badge__row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
 }
 
 .activity-badge__map {
@@ -39,22 +48,142 @@
   text-overflow: ellipsis;
 }
 
+/* top: 100% (not bottom: 0) anchors the badge's own TOP edge to the avatar's
+   bottom corner, so growing the popover only ever pushes the BOTTOM edge
+   further down. bottom: 0 anchors the opposite edge instead, which made
+   growth push the top edge up while the old percentage-based translateY —
+   scaling with the badge's own height — simultaneously pushed it down,
+   reading as expansion in both directions at once. The -32px is a fixed
+   pull-up over the corner, not a percentage, for the same reason the
+   Last.fm badge's own offset is fixed: a percentage would keep tracking the
+   EXPANDED height and drag the anchor down with it. */
 .activity-badge--floating {
   position: absolute;
-  bottom: 0;
+  top: 100%;
   left: 0;
-  transform: translate(-20%, 50%);
+  transform: translate(-20%, -32px);
   z-index: 5;
-  width: fit-content;
-  max-width: 240px;
+  /* Narrow at rest — just enough for the icon + "Recent vector" — then widens
+     in step with the popover dropping down, so the whole thing opens on one
+     diagonal rather than growing one axis then the other. left: 0 above
+     anchors the LEFT edge, so this growth only ever pushes the right edge
+     further right, the same reasoning as the top-anchor for downward-only
+     height growth. Same duration as .activity-badge__expand's
+     grid-template-rows below so both axes finish together. */
+  width: 190px;
+  transition: width 260ms ease;
+}
+
+.activity-badge--floating.is-expanded {
+  width: 320px;
+}
+
+/* Collapsed to nothing at rest; hovering the badge (.is-expanded, set in
+   ActivityWidget) reveals it. Mirrors .music-widget__expand. */
+.activity-badge__expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  width: 100%;
+  transition: grid-template-rows 260ms ease;
+}
+
+.activity-badge--floating.is-expanded .activity-badge__expand {
+  grid-template-rows: 1fr;
+}
+
+.activity-badge__expand-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.activity-badge__expand-heading {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.activity-badge__combined-map {
+  width: 100%;
+  aspect-ratio: 1;
+  display: block;
+  margin-top: 8px;
+}
+
+/* Real elevation contours (scripts/fetch-elevation.mjs), drawn under the
+   tracks — thin and faint so they read as terrain texture, not competing
+   lines. pointer-events: none keeps them from stealing a track's hover
+   (they'd otherwise sit on top in paint order at a track/contour crossing). */
+.activity-badge__contour {
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-opacity: 0.25;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.activity-badge__track-line {
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-opacity: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The track the compact icon is already showing gets picked out from the
+   others it's overlaid with — and hovering any track calls it out the same
+   way. Each track is a <g> of two paths: the thin visible one, and a fatter
+   invisible one on top purely to catch the pointer (fill: none paths only
+   register a hover over their actual stroke, and 2px is a thin target) —
+   hovering either one triggers this via the shared group. */
+.activity-badge__track {
+  cursor: pointer;
+}
+
+.activity-badge__track-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 20;
+  vector-effect: non-scaling-stroke;
+}
+
+.activity-badge__track.is-latest .activity-badge__track-line,
+.activity-badge__track:hover .activity-badge__track-line {
+  stroke: var(--text);
+  stroke-width: 1.6;
+  stroke-opacity: 1;
+}
+
+.activity-badge__grid-dot {
+  fill: var(--text-secondary);
+  opacity: 0.35;
+}
+
+.activity-badge__axis-label {
+  font-family: var(--font-tertiary, monospace);
+  font-size: 7px;
+  fill: var(--text-secondary);
+  opacity: 0.7;
 }
 
 /* Hangs further off the avatar's opposite corner on a phone — mirrors the
    adjustment the Last.fm badge makes. */
 @media (max-width: 640px) {
   .activity-badge--floating {
-    transform: translate(-30%, 40%);
-    max-width: 150px;
+    transform: translate(-30%, -24px);
+    width: 140px;
+  }
+
+  .activity-badge--floating.is-expanded {
+    width: 220px;
   }
 
   .activity-badge__shell {

@@ -96,13 +96,6 @@ p a:hover {
   border-bottom: 1px solid var(--text-hover);
 }
 
-.button-row__icons {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-}
-
 /* Icon buttons beside the intro's text buttons. Bare by default — the pill
    only appears on hover, shaped by the 50px radius to match the floating
    nav's items. Colour is set here because the base `a` rule in index.css
@@ -124,10 +117,7 @@ p a:hover {
 }
 
 .icon-link:hover {
-  background: #fff;
-  color: black;
-  box-shadow: 0 0 30px rgba(255, 255, 255, 0.4);
-  border: 1px solid transparent;
+  color: var(--text-hover);
 }
 
 .icon-link:focus-visible {
@@ -135,36 +125,13 @@ p a:hover {
   outline-offset: 4px;
 }
 
-/* Desktop: widen the hover pill to the floating nav's item width (the 96px
-   --floating-nav-item-width in Navbar.css), so the two read as the same
-   control. Left square on mobile, where the nav's items are a different
-   width again and the row has less room. */
-@media (min-width: 641px) {
-  .icon-link {
-    width: 96px;
-  }
-}
-
-/* Scoped to prose links, matching GLITCH_SELECTOR in PageLayout. */
+/* Prose/meta-table links: no glitch (that's the headings' effect now, see
+   HEADING_GLITCH_SELECTOR in PageLayout) — just the same plain colour flash
+   .music-widget__expand-footer:hover already uses. */
 .case-study__description a:hover,
+.case-study__detail-value a:hover,
 .home-intro a:not(.music-widget__shell):not(.button-link):not(.icon-link):hover {
-  animation: link-glitch 0.5s steps(10, jump-end);
-}
-
-@keyframes link-glitch {
-  0%, 100% { opacity: 1; border-bottom-color: var(--text-hover); }
-  20% { opacity: 0.3; border-bottom-color: var(--text-secondary); }
-  40% { opacity: 1; border-bottom-color: var(--text-hover); }
-  55% { opacity: 0.4; border-bottom-color: var(--text-secondary); }
-  70% { opacity: 1; border-bottom-color: var(--text-hover); }
-  85% { opacity: 0.5; border-bottom-color: var(--text-hover); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .case-study__description a:hover,
-  .home-intro a:not(.music-widget__shell):not(.button-link):not(.icon-link):hover {
-    animation: none;
-  }
+  color: var(--text-hover);
 }
 
 li a {
@@ -426,9 +393,11 @@ button:hover,
      the Last.fm badge overlaps the Rive canvas, whose mouseout plumbing in
      Home.tsx can swallow the event React builds onMouseLeave from — leaving
      the badge to snap back untransitioned. Declaring it here means the ease
-     home doesn't depend on that event landing. Matches the library's own
-     duration and easing so a normal leave looks identical. */
-  transition: transform 900ms cubic-bezier(0.03, 0.98, 0.52, 0.99);
+     home doesn't depend on that event landing. Matches TiltCard's own
+     transitionEasing/transitionSpeed props so a normal leave looks
+     identical — see the comment there for why it's a gentler curve than
+     the library's own default. */
+  transition: transform 900ms cubic-bezier(0.33, 1, 0.68, 1);
 }
 
 /* Outer grab layer: catches the pointer so a held drag keeps steering the
@@ -583,14 +552,70 @@ button:hover,
 }
 
 /* Undo the global span{} highlight style — it's meant for prose, not these
-   incidental spans (text-truncate-scroll's own wrappers, and the tag pills
-   in the expanded top-tags list, which draw their own background/border). */
+   incidental spans (text-truncate-scroll's own wrappers, the marquee's text
+   spans, and the tag pills in the expanded top-tags list, which draw their
+   own background/border). */
 .music-widget__title span,
 .music-widget__detail span,
+.music-widget__marquee-item,
 .music-widget__expand-tag {
   background: none;
   border-radius: 0;
   padding: 0;
+}
+
+/* Old-Winamp-style ticker for the combined "song - artist" line — unlike
+   .music-widget__title/__detail above, this one scrolls continuously rather
+   than only on hover. width: 100% clips to the fixed badge width set on
+   .music-widget--floating; overflow: hidden is what makes anything past that
+   invisible instead of wrapping. */
+.music-widget__marquee {
+  width: 100%;
+  overflow: hidden;
+}
+
+.music-widget__marquee-track {
+  display: flex;
+  width: max-content;
+  /* Exactly one copy's width (see .music-widget__marquee-item's padding) —
+     the second, identical copy is right where the first one just left,
+     so the loop point is invisible. linear, not ease: a ticker holds one
+     constant speed, it doesn't accelerate in and out like a UI transition. */
+  animation: music-widget-marquee linear infinite;
+  animation-duration: 10s;
+}
+
+.music-widget__marquee-item {
+  flex: 0 0 auto;
+  padding-right: 40px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+@keyframes music-widget-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .music-widget__marquee-track {
+    animation: none;
+  }
+
+  .music-widget__marquee {
+    overflow: visible;
+    white-space: normal;
+  }
+
+  .music-widget__marquee-item:nth-child(2) {
+    display: none;
+  }
 }
 
 /* react-parallax-tilt writes `transition: all <speed>ms <easing>` straight onto
@@ -652,6 +677,31 @@ button:hover,
   border: 1px solid var(--border);
 }
 
+.music-widget__expand-artists {
+  margin-top: 6px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Overrides the global li rule (App.css li::before) — its "✦" glyph and
+   padding-left are meant for prose lists, not this compact ranking. */
+.music-widget__expand-artist {
+  position: static;
+  padding-left: 0;
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.music-widget__expand-artist::before {
+  content: none;
+}
+
 .music-widget__expand-footer {
   display: block;
   margin-top: 10px;
@@ -666,12 +716,70 @@ button:hover,
   color: var(--text-hover);
 }
 
+/* Percentages of the card's own box, so the same values work regardless of
+   how big a given .container is — PageLayout's pointermove handler writes
+   the cursor's position within the card straight onto these. Typed so the
+   pointerout reset below can transition them instead of jumping. */
+@property --glow-x {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 50%;
+}
+
+@property --glow-y {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
+/* Plain number (an alpha channel, not a CSS <alpha-value>) so it can be fed
+   straight into the bright stop's rgba() below — how intense the glow
+   currently is, per PageLayout's distance-based falloff. */
+@property --glow-alpha {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0.12;
+}
+
+/* Applied only while easing back to rest when the cursor leaves the browser
+   viewport entirely (see PageLayout's handlePointerOut) — absent the rest
+   of the time so every other frame's continuous, distance-driven update
+   stays an untransitioned 1:1 readout rather than lagging behind it. */
+.container--gradient-resetting {
+  transition: --glow-x 500ms ease-out, --glow-y 500ms ease-out, --glow-alpha 500ms ease-out;
+}
+
+/* Border glow that follows the cursor everywhere in the viewport, not just
+   while directly over a given card (after codepen.io/joychetry/pen/
+   wBvJgLb, adapted): the border ring is .container's own background
+   already — it only ever shows through the 1px padding gap. A radial
+   gradient centred at the cursor's actual position (rather than a linear
+   one merely pointed toward it) is what gives the two behaviours that
+   pattern is known for: centred, it's roughly equidistant from every side
+   so the ring lights up fairly evenly all round, and dragged toward a
+   corner that corner sits much closer to the light than the opposite one,
+   so it reads as more intense there while the far side fades. A fixed-size
+   circle would need guessing at a radius that works for every card size
+   .container gets used at (badges, thumbnails, the hero); omitting the
+   size instead defaults to farthest-corner, which reaches exactly the
+   corner farthest from the cursor on whatever box it's drawn on.
+   --glow-alpha on the bright stop is the other half: the cursor being
+   *near* a card at all (as opposed to over one particular part of it) is
+   what --glow-x/--glow-y alone can't express, since they're always some
+   position whether the cursor is right on the card or across the page. */
 .container {
-  background: var(--gradient);
+  background: radial-gradient(circle at var(--glow-x, 50%) var(--glow-y, 0%), rgba(177, 241, 203, var(--glow-alpha, 0.12)) 0%, rgba(177, 241, 203, 0.08) 45%) border-box;
   border-radius: 20px;
   padding: 1px;
   margin: 0;
   overflow: hidden;
+}
+
+/* The hero's Rive card skips the cursor-following glow every other
+   .container gets (PageLayout excludes it from that tracking entirely) —
+   its border stays the original fixed, static gradient instead. */
+.container.hero-rive {
+  background: var(--gradient);
 }
 
 .media-grid {

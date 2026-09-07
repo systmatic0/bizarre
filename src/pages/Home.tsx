@@ -139,24 +139,19 @@ function Home() {
               Check out my work
             </button>
             <a href='/cv.pdf' target='_blank' rel='noopener noreferrer' className='button-link'>Read my CV</a>
-
-            {/* Grouped so the pair always wraps as one — otherwise a narrow
-                row fits one icon beside the CV button and strands the other. */}
-            <div className='button-row__icons'>
-              {iconLinks.map(({ label, href, Icon }) => (
-                <a
-                  key={label}
-                  href={href}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  aria-label={label}
-                  className='icon-link'
-                >
-                  {/* 24px and 1.75 stroke to match the floating nav's icons. */}
-                  <Icon size={24} strokeWidth={1.75} aria-hidden='true' />
-                </a>
-              ))}
-            </div>
+            {iconLinks.map(({ label, href, Icon }) => (
+              <a
+                key={label}
+                href={href}
+                target='_blank'
+                rel='noopener noreferrer'
+                aria-label={label}
+                className='icon-link'
+              >
+                {/* 24px and 1.75 stroke to match the floating nav's icons. */}
+                <Icon size={24} strokeWidth={1.75} aria-hidden='true' />
+              </a>
+            ))}
           </div>
         </div>
       </div>

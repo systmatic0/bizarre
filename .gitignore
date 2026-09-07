@@ -24,5 +24,7 @@ dist-ssr
 *.sln
 *.sw?
 
-# Generated at build time by scripts/fetch-activities.mjs
+# Generated at build time by scripts/fetch-activities.mjs and
+# scripts/fetch-elevation.mjs
 public/activities.json
+public/topo.json
