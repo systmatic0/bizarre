@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { computeBounds, largestCluster, latLngBounds, projectPath, projectPoint, toSvgPath, type LatLng } from './projectRoute'
+import { computeBounds, largestCluster, latLngBounds, projectPath, toSvgPath, type LatLng } from './projectRoute'
 import TiltCard from './TiltCard'
 import '../styles/Activity.css'
 
@@ -21,24 +21,17 @@ type Track = {
 type ContourLevel = { elevation: number; lines: LatLng[][] }
 type Topo = { levels: ContourLevel[] }
 
-type View = { x: number; y: number; width: number; height: number }
-
 // public/activities.json and public/topo.json are written at build time by
 // scripts/fetch-activities.mjs and scripts/fetch-elevation.mjs.
 const DATA_URL = '/activities.json'
 const TOPO_URL = '/topo.json'
 const SVG_SIZE = 100
 const SVG_PADDING = 6
-// The full map gets more room than the tight crop, so close-together routes
-// still read as separate lines rather than one blur.
+// The combined map gets more room than the compact icon, so close-together
+// routes still read as separate lines rather than one blur.
 const MAP_SVG_SIZE = 200
 const MAP_SVG_PADDING = 10
-// Coarse enough to read as a coordinate reference (like a paper map's
-// graticule) rather than a texture. 40 divided the 200-unit map evenly,
-// which put a grid line exactly on every edge of the canvas — bumped up so
-// it doesn't, and the pattern's own x/y offset below (half a cell) shifts
-// the near corner off the edge too, so no line touches the border anywhere.
-const GRID_SPACING = 48
+const GRID_SPACING = 10
 // How long the popover waits, after the cursor actually arrives or leaves,
 // before it opens or closes — long enough that passing over or near the
 // badge on the way elsewhere doesn't read as an open-close flicker. Closing
@@ -46,38 +39,11 @@ const GRID_SPACING = 48
 // showing) is more disruptive than an accidental open.
 const EXPAND_DELAY_MS = 120
 const COLLAPSE_DELAY_MS = 250
-// How long the map's viewBox takes to animate between its tight (collapsed)
-// and full (expanded) framing — matches the CSS transition on the stage's
-// own width/height below, so the canvas growing and the view zooming out
-// finish together.
-const VIEW_ANIMATION_MS = 320
-// The baseline map-unit HEIGHT the tight (collapsed) view sits at for any
-// activity short enough to fit inside it — see the comment on tightView
-// below. Picked so a typical few-kilometre loop reads at a consistent,
-// legible size inside the collapsed rectangle rather than each activity
-// rendering at its own, incidental scale. Width follows from
-// COLLAPSED_ASPECT, not a separate number, so the baseline window is
-// already shaped like the rectangle it's drawn into.
-const TIGHT_VIEW_REFERENCE_HEIGHT = 24
-// The collapsed rectangle's own on-screen aspect ratio (width ÷ height) —
-// .activity-badge--floating's collapsed width (190px) ÷ .activity-badge__
-// stage's collapsed height (64px) in Activity.css. tightView's viewBox is
-// built at this same aspect ratio so it fills the rectangle edge to edge
-// with no letterboxing, while still being sized (via Math.max against the
-// track's own bounding box) to never crop the vector itself — see
-// preserveAspectRatio="meet" on the svg below, which is what actually
-// guarantees no cropping if this constant ever drifts out of sync with the
-// CSS.
-const COLLAPSED_ASPECT = 190 / 64
-
-function easeOutCubic(t: number): number {
-  return 1 - (1 - t) ** 3
-}
 
 function ActivityWidget() {
   const [track, setTrack] = useState<Track | null>(null)
-  // All tracks the build script pulled, newest first — expanding overlays
-  // every one of them on the same map (the `bounds` below pools every
+  // All tracks the build script pulled, newest first — the popover overlays
+  // every one of them on a single shared map (the `bounds` below pools every
   // track's points into one bounding box, so a route in Keila and one in
   // Saue land at their true positions relative to each other, and nothing
   // outside that combined box — e.g. Tallinn — gets pulled in).
@@ -85,7 +51,7 @@ function ActivityWidget() {
   const [topo, setTopo] = useState<Topo | null>(null)
   const [isExpanded, setIsExpanded] = useState(false)
   const cardRef = useRef<HTMLDivElement | null>(null)
-  const stageRef = useRef<HTMLDivElement | null>(null)
+  const expandRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -130,12 +96,9 @@ function ActivityWidget() {
     () => largestCluster(tracks.map((item) => item.points)).map((index) => tracks[index]),
     [tracks],
   )
-  // Computed once and reused for the tracks, the contour lines, and both the
-  // tight and full viewBox framings below, so everything this widget draws —
-  // whichever framing is currently showing — lives in exactly one shared
-  // coordinate system. There is only ever one canvas (see the single <svg>
-  // in the render below): collapsed and expanded are just two different
-  // viewBox rectangles animated between, not two separately-drawn maps.
+  // Computed once and reused for both the tracks and the contour lines below,
+  // so an elevation grid sampled independently of any track still lands in
+  // exactly the same pixel space as the routes drawn over it.
   const bounds = useMemo(
     () => (mapTracks.length > 1 ? computeBounds(mapTracks.flatMap((item) => item.points), MAP_SVG_SIZE, MAP_SVG_PADDING) : null),
     [mapTracks],
@@ -165,87 +128,6 @@ function ActivityWidget() {
     [mapTracks],
   )
   const gridPatternId = useId()
-
-  // The two framings the single canvas animates between. `fullView` is the
-  // whole shared map (every track, matching `bounds`), square like `bounds`
-  // itself. `tightView` is shaped like the collapsed rectangle
-  // (COLLAPSED_ASPECT) and sized so the latest track's own bounding box
-  // ALWAYS fits entirely inside it — never cropped — regardless of whether
-  // the route itself is wide, tall, or square. Both are the same
-  // `bounds`/projection, so panning or resizing between them never has to
-  // reconcile two different coordinate systems.
-  const fullView = useMemo<View>(() => ({ x: 0, y: 0, width: MAP_SVG_SIZE, height: MAP_SVG_SIZE }), [])
-  const tightView = useMemo<View | null>(() => {
-    if (!bounds || !track) return null
-
-    const projected = track.points.map((point) => projectPoint(point, bounds, MAP_SVG_SIZE, MAP_SVG_PADDING))
-    const minX = Math.min(...projected.map((point) => point.x))
-    const maxX = Math.max(...projected.map((point) => point.x))
-    const minY = Math.min(...projected.map((point) => point.y))
-    const maxY = Math.max(...projected.map((point) => point.y))
-    const trackWidth = maxX - minX
-    const trackHeight = maxY - minY
-    // A little breathing room around the track's own bounding box, rather
-    // than cropping flush against it.
-    const margin = Math.max(trackWidth, trackHeight) * 0.3 + 10
-    const contentWidth = trackWidth + margin * 2
-    const contentHeight = trackHeight + margin * 2
-    // The smallest COLLAPSED_ASPECT-shaped window that still contains the
-    // full content box in both dimensions — whichever dimension is the
-    // tighter constraint (a tall route vs. the rectangle's own wide shape,
-    // or vice versa) drives the size, then the other dimension follows the
-    // fixed aspect ratio, so nothing needs the window to crop either axis.
-    // Also floored at TIGHT_VIEW_REFERENCE_HEIGHT — a short activity
-    // shouldn't get zoomed IN to fill the rectangle (it would read at a
-    // different, inconsistent scale from every other short activity); it
-    // sits at this same baseline zoom instead. Only a route whose own
-    // extent already needs more room pushes the window out further.
-    const height = Math.max(TIGHT_VIEW_REFERENCE_HEIGHT, contentHeight, contentWidth / COLLAPSED_ASPECT)
-    const width = height * COLLAPSED_ASPECT
-
-    return { x: (minX + maxX) / 2 - width / 2, y: (minY + maxY) / 2 - height / 2, width, height }
-  }, [bounds, track])
-  // Nothing to zoom out TO with only one track — stays on tightView, and the
-  // hover/expand interaction becomes a no-op rather than "expanding" into an
-  // identical view.
-  const targetView = isExpanded || !tightView ? fullView : tightView
-
-  // The viewBox actually rendered — animated toward `targetView` below
-  // rather than snapping straight to it, so the canvas visibly zooms in/out
-  // around the latest track instead of the two states just swapping.
-  const [view, setView] = useState<View>(() => targetView)
-  const viewAnimationRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    if (viewAnimationRef.current !== null) cancelAnimationFrame(viewAnimationRef.current)
-
-    const start = view
-    const startTime = performance.now()
-
-    const step = (now: number) => {
-      const t = Math.min(1, (now - startTime) / VIEW_ANIMATION_MS)
-      const eased = easeOutCubic(t)
-
-      setView({
-        x: start.x + (targetView.x - start.x) * eased,
-        y: start.y + (targetView.y - start.y) * eased,
-        width: start.width + (targetView.width - start.width) * eased,
-        height: start.height + (targetView.height - start.height) * eased,
-      })
-
-      viewAnimationRef.current = t < 1 ? requestAnimationFrame(step) : null
-    }
-
-    viewAnimationRef.current = requestAnimationFrame(step)
-
-    return () => {
-      if (viewAnimationRef.current !== null) cancelAnimationFrame(viewAnimationRef.current)
-    }
-    // Only the target's own values should restart the animation — including
-    // `view` here would restart it on every single animated frame, since
-    // `view` itself changes every frame.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetView.x, targetView.y, targetView.width, targetView.height])
 
   // Both directions wait a beat rather than firing the instant the cursor
   // crosses the edge — without it, a cursor merely passing over or near the
@@ -298,26 +180,32 @@ function ActivityWidget() {
   // Same fix as the Last.fm badge: react-parallax-tilt caches its measured
   // size at mouseenter and only re-measures on window resize, so it never
   // notices the popover growing the card underneath it. Both dimensions
-  // animate at once here (the stage's own height, and width on the outer
-  // floating card), so both need to trigger a re-measure.
+  // animate at once here (grid-template-rows on the inner expand element,
+  // width on the outer floating card), so both need to trigger a re-measure.
+  // Depends on mapTracks/mapBounds (not []): .activity-badge__expand only
+  // renders once those are ready (they come from an async fetch), so
+  // expandRef.current is still null on the mount-time run this effect would
+  // otherwise be stuck with — leaving the listener never attached at all,
+  // and the popover's tilt permanently stale at whatever angle it had before
+  // it ever expanded.
   useEffect(() => {
     const cardEl = cardRef.current
-    const stageEl = stageRef.current
-    if (!cardEl || !stageEl) return
+    const expandEl = expandRef.current
+    if (!cardEl || !expandEl) return
 
     const handleTransitionEnd = (event: TransitionEvent) => {
-      if (event.propertyName === 'height' || event.propertyName === 'width') {
+      if (event.propertyName === 'grid-template-rows' || event.propertyName === 'width') {
         window.dispatchEvent(new Event('resize'))
       }
     }
 
     cardEl.addEventListener('transitionend', handleTransitionEnd)
-    stageEl.addEventListener('transitionend', handleTransitionEnd)
+    expandEl.addEventListener('transitionend', handleTransitionEnd)
     return () => {
       cardEl.removeEventListener('transitionend', handleTransitionEnd)
-      stageEl.removeEventListener('transitionend', handleTransitionEnd)
+      expandEl.removeEventListener('transitionend', handleTransitionEnd)
     }
-  }, [])
+  }, [mapTracks, mapBounds])
 
   // Stay hidden until there's a route to draw, matching how the Last.fm badge
   // behaves when there's nothing playing.
@@ -328,136 +216,111 @@ function ActivityWidget() {
       className={`activity-badge activity-badge--floating${isExpanded ? ' is-expanded' : ''}`}
       ref={cardRef}
     >
-      {/* maxAngle bumped past TiltCard's default 12deg — at 12, the card's
-          own rotation (as opposed to the busy map content inside it) was too
-          subtle to register as "the card leaning" once expanded to its full
-          size, even with the tilt correctly recalculating (see the
-          resize-driven re-measure fix elsewhere in this file/TiltCard.tsx).
-          Pulled back down from an earlier 24, which read as too much lean. */}
-      <TiltCard glareEnable={false} scale={1} maxAngle={16}>
+      {/* maxAngle bumped well past TiltCard's default 12deg — at 12, the
+          card's own rotation (as opposed to the busy map content inside it)
+          was too subtle to register as "the card leaning" once expanded to
+          its full size, even with the tilt correctly recalculating (see the
+          resize-driven re-measure fix elsewhere in this file/TiltCard.tsx). */}
+      <TiltCard glareEnable={false} scale={1} maxAngle={24}>
         <div className='activity-badge__shell'>
-          {/* One canvas, one coordinate system, for every state this widget
-              is ever in — no separate collapsed icon and expanded map to
-              keep in sync. `view` (animated toward tightView or fullView
-              above) is the only thing that changes; the grid, the terrain,
-              every track, and the corner labels are always all here,
-              exactly once. */}
-          <div className='activity-badge__stage' ref={stageRef}>
-            <svg
-              className='activity-badge__stage-map'
-              viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`}
-              preserveAspectRatio='xMidYMid meet'
-              role='img'
-              aria-label={isExpanded ? 'Recent tracks, overlaid on one map' : 'Map polygon'}
-            >
-              {bounds && (
-                <>
-                  <defs>
-                    <pattern
-                      id={gridPatternId}
-                      x={GRID_SPACING / 2}
-                      y={GRID_SPACING / 2}
-                      width={GRID_SPACING}
-                      height={GRID_SPACING}
-                      patternUnits='userSpaceOnUse'
-                    >
-                      {/* Drawing just each tile's own top and left edges —
-                          rather than a full rect border — still produces a
-                          complete, continuous grid once the pattern
-                          repeats, since adjacent tiles share those edges. */}
-                      <path className='activity-badge__grid-line' d={`M0 0H${GRID_SPACING}M0 0V${GRID_SPACING}`} />
-                    </pattern>
-                  </defs>
-                  {/* Faded in only once expanded — a coordinate graticule
-                      reads as noise at the tight, zoomed-in crop, useful
-                      context once zoomed out to the full map. */}
-                  <rect
-                    className={`activity-badge__grid${isExpanded ? ' is-visible' : ''}`}
-                    x={0}
-                    y={0}
-                    width={MAP_SVG_SIZE}
-                    height={MAP_SVG_SIZE}
-                    fill={`url(#${gridPatternId})`}
-                  />
-                </>
-              )}
+        <div className='activity-badge__row'>
+          <svg
+            className='activity-badge__map'
+            viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
+            role='img'
+            aria-label={`Map polygon`}
+          >
+            <path d={toSvgPath(track.points, SVG_SIZE, SVG_PADDING)} />
+          </svg>
 
-              {contourLevels.map((level) => (
-                <path key={level.elevation} className='activity-badge__contour' d={level.d}>
-                  <title>{`${level.elevation.toFixed(0)}m`}</title>
-                </path>
-              ))}
+          <p className='activity-badge__title'>Recent vector</p>
+        </div>
 
-              {bounds
-                ? mapTracks.map((item, index) => (
-                    <g
-                      key={item.id}
-                      className={`activity-badge__track${item.id === track.id ? ' is-latest' : ''}`}
-                    >
-                      <title>{item.name}</title>
-                      {/* Fatter, invisible: fill: none paths only register
-                          a hover over their actual stroke, and the visible
-                          line's 2px is too thin a target to hover
-                          reliably. */}
-                      <path className='activity-badge__track-hit' d={combinedPaths[index]} />
-                      <path className='activity-badge__track-line' d={combinedPaths[index]} />
-                    </g>
-                  ))
-                : (
-                    // Fallback for the rare single-activity case (no second
-                    // track to cluster against, so no shared `bounds` at
-                    // all): the track's own independent local projection.
-                    <g className='activity-badge__track is-latest'>
-                      <path className='activity-badge__track-line' d={toSvgPath(track.points, SVG_SIZE, SVG_PADDING)} />
-                    </g>
-                  )}
-
-              {/* Corner labels are the raw coordinate extremes of the
-                  tracks actually on the map, not tick marks tied to the
-                  grid dots — the grid is a plain backdrop, unrelated to
-                  degrees. Faded in only once expanded, same as the grid. */}
-              {mapBounds && (
-                <g className={`activity-badge__axis-labels${isExpanded ? ' is-visible' : ''}`}>
-                  <text className='activity-badge__axis-label' x={4} y={4} textAnchor='start' dominantBaseline='hanging'>
-                    {mapBounds.maxLat.toFixed(3)}°N
-                  </text>
-                  <text
-                    className='activity-badge__axis-label'
-                    x={MAP_SVG_SIZE - 4}
-                    y={4}
-                    textAnchor='end'
-                    dominantBaseline='hanging'
+        {mapTracks.length > 1 && mapBounds && (
+          <div className='activity-badge__expand' ref={expandRef}>
+            <div className='activity-badge__expand-inner'>
+              <p className='activity-badge__expand-heading'>Recent tracks</p>
+              <svg
+                className='activity-badge__combined-map'
+                viewBox={`0 0 ${MAP_SVG_SIZE} ${MAP_SVG_SIZE}`}
+                role='img'
+                aria-label='Recent tracks, overlaid on one map'
+              >
+                <defs>
+                  <pattern
+                    id={gridPatternId}
+                    width={GRID_SPACING}
+                    height={GRID_SPACING}
+                    patternUnits='userSpaceOnUse'
                   >
-                    {mapBounds.maxLng.toFixed(3)}°E
-                  </text>
-                  <text
-                    className='activity-badge__axis-label'
-                    x={4}
-                    y={MAP_SVG_SIZE - 4}
-                    textAnchor='start'
-                    dominantBaseline='auto'
-                  >
-                    {mapBounds.minLng.toFixed(3)}°E
-                  </text>
-                  <text
-                    className='activity-badge__axis-label'
-                    x={MAP_SVG_SIZE - 4}
-                    y={MAP_SVG_SIZE - 4}
-                    textAnchor='end'
-                    dominantBaseline='auto'
-                  >
-                    {mapBounds.minLat.toFixed(3)}°N
-                  </text>
-                </g>
-              )}
-            </svg>
+                    <circle className='activity-badge__grid-dot' cx={1} cy={1} r={0.6} />
+                  </pattern>
+                </defs>
+                <rect
+                  x={0}
+                  y={0}
+                  width={MAP_SVG_SIZE}
+                  height={MAP_SVG_SIZE}
+                  fill={`url(#${gridPatternId})`}
+                />
 
-            {/* Absolutely positioned, not a flex sibling of the map above —
-                its place is fixed regardless of where the vector/topo
-                happen to fall in their own coordinate system, rather than
-                being pushed around by that content. */}
-            <p className='activity-badge__title'>Recent vector</p>
+                {contourLevels.map((level) => (
+                  <path key={level.elevation} className='activity-badge__contour' d={level.d}>
+                    <title>{`${level.elevation.toFixed(0)}m`}</title>
+                  </path>
+                ))}
+
+                {mapTracks.map((item, index) => (
+                  <g
+                    key={item.id}
+                    className={`activity-badge__track${item.id === track.id ? ' is-latest' : ''}`}
+                  >
+                    <title>{item.name}</title>
+                    {/* Fatter, invisible: fill: none paths only register a
+                        hover over their actual stroke, and the visible
+                        line's 2px is too thin a target to hover reliably. */}
+                    <path className='activity-badge__track-hit' d={combinedPaths[index]} />
+                    <path className='activity-badge__track-line' d={combinedPaths[index]} />
+                  </g>
+                ))}
+
+                {/* Corner labels are the raw coordinate extremes of the tracks
+                    drawn above, not tick marks tied to the grid dots — the
+                    grid is a plain backdrop, unrelated to degrees. */}
+                <text className='activity-badge__axis-label' x={4} y={4} textAnchor='start' dominantBaseline='hanging'>
+                  {mapBounds.maxLat.toFixed(3)}°N
+                </text>
+                <text
+                  className='activity-badge__axis-label'
+                  x={MAP_SVG_SIZE - 4}
+                  y={4}
+                  textAnchor='end'
+                  dominantBaseline='hanging'
+                >
+                  {mapBounds.maxLng.toFixed(3)}°E
+                </text>
+                <text
+                  className='activity-badge__axis-label'
+                  x={4}
+                  y={MAP_SVG_SIZE - 4}
+                  textAnchor='start'
+                  dominantBaseline='auto'
+                >
+                  {mapBounds.minLng.toFixed(3)}°E
+                </text>
+                <text
+                  className='activity-badge__axis-label'
+                  x={MAP_SVG_SIZE - 4}
+                  y={MAP_SVG_SIZE - 4}
+                  textAnchor='end'
+                  dominantBaseline='auto'
+                >
+                  {mapBounds.minLat.toFixed(3)}°N
+                </text>
+              </svg>
+            </div>
           </div>
+        )}
         </div>
       </TiltCard>
     </div>

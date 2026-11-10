@@ -50,12 +50,6 @@ const DRAG_SLOP = 4
 // Matches the CSS ease on .tilt-card, so control returns to the hover tilt
 // only once the badge has finished settling flat.
 const SETTLE_MS = 900
-// A press starting on one of these skips the tilt-drag handling entirely
-// (see handlePointerDown), so the browser's native text-selection drag gets
-// the gesture uncontested instead of being read as a drag-to-tilt. Mirrors
-// the cursor: text selector in App.css — same elements, same reasoning.
-const SELECTABLE_TEXT_SELECTOR =
-  '.music-widget__eyebrow, .music-widget__marquee-item, .music-widget__expand-heading, .music-widget__expand-artist, .activity-badge__title, .activity-badge__expand-heading'
 
 function clamp(value: number, limit: number) {
   return Math.max(-limit, Math.min(limit, value))
@@ -78,14 +72,6 @@ function TiltCard({ className, children, maxAngle = DEFAULT_MAX_ANGLE, glareEnab
   // (drives the re-render that applies it).
   const isDraggingRef = useRef(false)
   const [isDragging, setIsDragging] = useState(false)
-  // True only once a press has actually moved past DRAG_SLOP — unlike
-  // isDragging above (set the instant the pointer goes down, so the CSS
-  // grabbing cursor shows right away), this drives suppressing text
-  // selection, which needs to stay off until a real drag is confirmed. Set
-  // it any earlier and it fires on every plain click too, since a click
-  // starts as a pointerdown indistinguishable from the start of a drag —
-  // which ate the ability to select any of the badges' text entirely.
-  const [isDragConfirmed, setIsDragConfirmed] = useState(false)
 
   const clearSettle = useCallback(() => {
     if (settleTimeoutRef.current === null) return
@@ -102,7 +88,6 @@ function TiltCard({ className, children, maxAngle = DEFAULT_MAX_ANGLE, glareEnab
     originRef.current = null
     isDraggingRef.current = false
     setIsDragging(false)
-    setIsDragConfirmed(false)
 
     const wrapper = wrapperRef.current
     const pointerId = pointerIdRef.current
@@ -237,10 +222,6 @@ function TiltCard({ className, children, maxAngle = DEFAULT_MAX_ANGLE, glareEnab
     // is ours to tilt with. If the browser does claim the gesture, it sends
     // pointercancel and the badge settles back on its own.
     if (prefersReducedMotion || event.button !== 0) return
-    // Text over the tilt: starting a press here, this never sets up drag
-    // tracking at all, so there's nothing for pointer capture to later
-    // claim away from the browser's own text-selection drag.
-    if ((event.target as HTMLElement).closest?.(SELECTABLE_TEXT_SELECTOR)) return
 
     clearSettle()
     originRef.current = { x: event.clientX, y: event.clientY }
@@ -248,7 +229,6 @@ function TiltCard({ className, children, maxAngle = DEFAULT_MAX_ANGLE, glareEnab
     isDraggingRef.current = true
     setIsDragging(true)
     didDragRef.current = false
-    setIsDragConfirmed(false)
     // Pointer capture itself waits for handlePointerMove below, once a real
     // drag is confirmed — capturing here unconditionally would claim every
     // plain click too, and a captured element is where the browser sends the
@@ -273,32 +253,12 @@ function TiltCard({ className, children, maxAngle = DEFAULT_MAX_ANGLE, glareEnab
 
     const dx = event.clientX - origin.x
     const dy = event.clientY - origin.y
-    if (!didDragRef.current) {
-      const passedSlop = Math.abs(dx) > DRAG_SLOP || Math.abs(dy) > DRAG_SLOP
-      if (!passedSlop) return
-
-      // A vertical-dominant move is a scroll, not a tilt drag — touch-action:
-      // pan-y on the wrapper is meant to leave that to the browser (see the
-      // comment on handlePointerDown), but without this check every move
-      // past the slop was treated as a drag regardless of direction, which
-      // set dragAngles (visibly tilting the badge) and captured the pointer
-      // before the browser ever got to recognize its own pan gesture —
-      // hijacking a finger scrolling the page into a tilt instead. Bailing
-      // out here, uncaptured, hands the gesture to native scrolling.
-      if (Math.abs(dy) > Math.abs(dx)) {
-        originRef.current = null
-        isDraggingRef.current = false
-        setIsDragging(false)
-        setDragAngles(null)
-        return
-      }
-
+    if (!didDragRef.current && (Math.abs(dx) > DRAG_SLOP || Math.abs(dy) > DRAG_SLOP)) {
       didDragRef.current = true
       // Claimed now, not on pointerdown — see the comment there. By this
       // point the gesture is confirmed to be a drag, so it's safe to start
       // tracking the pointer even once it leaves the badge's own bounds.
       event.currentTarget.setPointerCapture(event.pointerId)
-      setIsDragConfirmed(true)
     }
 
     const scale = dragMaxAngle / DRAG_RANGE
@@ -317,7 +277,7 @@ function TiltCard({ className, children, maxAngle = DEFAULT_MAX_ANGLE, glareEnab
   return (
     <div
       ref={wrapperRef}
-      className={`tilt-card-grab${isDragging ? ' is-dragging' : ''}${isDragConfirmed ? ' is-drag-confirmed' : ''}`}
+      className={`tilt-card-grab${isDragging ? ' is-dragging' : ''}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

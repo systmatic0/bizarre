@@ -1,63 +1,45 @@
 /* Mirrors .music-widget on the hero: same shell, opposite corner. */
 
-/* No padding here — the map canvas needs to reach the shell's actual edges,
-   not stop at an inset padding box. overflow: hidden clips it (and
-   everything else) to the rounded corners now that content actually
-   touches them. */
+/* Column so the expand popover can stack below the icon+title row rather than
+   sitting beside it. */
 .activity-badge__shell {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   text-align: left;
+  padding: 10px 14px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--backgroundBlur);
   backdrop-filter: blur(var(--blur-200));
-  overflow: hidden;
 }
 
-/* One canvas, one stage — its height animates between the tight (collapsed)
-   rectangle and the full (expanded) square in step with the floating
-   badge's own width transition below, so the whole widget reads as one
-   shape growing rather than a small part swapping for a different big
-   part. 64px matches .music-widget__shell's own compact height on the
-   Last.fm badge, so the two floating badges sit at the same scale at rest.
-   Positioning context for the map svg and the title, both of which move
-   within it via their own transitions below rather than this stage itself
-   changing padding or layout mode. */
-.activity-badge__stage {
-  position: relative;
+.activity-badge__row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  height: 64px;
-  transition: height 320ms ease;
 }
 
-.activity-badge--floating.is-expanded .activity-badge__stage {
-  height: 300px;
-}
-
-/* Always full-bleed within the stage, at rest and expanded alike — the
-   topo texture covers the entire collapsed rectangle, not just a small
-   clipped icon box. The component only ever animates this element's own
-   viewBox internally (the tight crop around the latest track zooming out
-   to the full multi-track map); the element's own on-screen box never
-   moves, only what it's currently framing does. */
-.activity-badge__stage-map {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+.activity-badge__map {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
   display: block;
 }
 
-/* Fixed top-left spot, overlaid directly on the map/topo behind it — same
-   treatment the reference design uses, text sitting on top of the terrain
-   rather than carving out its own icon-free zone. Matches
-   .music-widget__title's style on the Last.fm badge. */
+.activity-badge__map path {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Matches .music-widget__title's style on the Last.fm badge. */
 .activity-badge__title {
-  position: absolute;
-  top: 10px;
-  left: 14px;
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--text);
@@ -81,19 +63,54 @@
   left: 0;
   transform: translate(-20%, -32px);
   z-index: 5;
-  /* Narrow at rest — just enough for the title and the tight map crop —
-     then widens in step with the stage growing taller, so the whole thing
-     opens on one diagonal rather than growing one axis then the other.
-     left: 0 above anchors the LEFT edge, so this growth only ever pushes
-     the right edge further right, the same reasoning as the top-anchor for
-     downward-only height growth. Same duration as .activity-badge__stage's
-     height transition above so both axes finish together. */
+  /* Narrow at rest — just enough for the icon + "Recent vector" — then widens
+     in step with the popover dropping down, so the whole thing opens on one
+     diagonal rather than growing one axis then the other. left: 0 above
+     anchors the LEFT edge, so this growth only ever pushes the right edge
+     further right, the same reasoning as the top-anchor for downward-only
+     height growth. Same duration as .activity-badge__expand's
+     grid-template-rows below so both axes finish together. */
   width: 190px;
-  transition: width 320ms ease;
+  transition: width 260ms ease;
 }
 
 .activity-badge--floating.is-expanded {
   width: 320px;
+}
+
+/* Collapsed to nothing at rest; hovering the badge (.is-expanded, set in
+   ActivityWidget) reveals it. Mirrors .music-widget__expand. */
+.activity-badge__expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  width: 100%;
+  transition: grid-template-rows 260ms ease;
+}
+
+.activity-badge--floating.is-expanded .activity-badge__expand {
+  grid-template-rows: 1fr;
+}
+
+.activity-badge__expand-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.activity-badge__expand-heading {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.activity-badge__combined-map {
+  width: 100%;
+  aspect-ratio: 1;
+  display: block;
+  margin-top: 8px;
 }
 
 /* Real elevation contours (scripts/fetch-elevation.mjs), drawn under the
@@ -121,12 +138,12 @@
   vector-effect: non-scaling-stroke;
 }
 
-/* The latest track gets picked out from the others it's overlaid with — and
-   hovering any track calls it out the same way. Each track is a <g> of two
-   paths: the thin visible one, and a fatter invisible one on top purely to
-   catch the pointer (fill: none paths only register a hover over their
-   actual stroke, and 2px is a thin target) — hovering either one triggers
-   this via the shared group. */
+/* The track the compact icon is already showing gets picked out from the
+   others it's overlaid with — and hovering any track calls it out the same
+   way. Each track is a <g> of two paths: the thin visible one, and a fatter
+   invisible one on top purely to catch the pointer (fill: none paths only
+   register a hover over their actual stroke, and 2px is a thin target) —
+   hovering either one triggers this via the shared group. */
 .activity-badge__track {
   cursor: pointer;
 }
@@ -145,24 +162,9 @@
   stroke-opacity: 1;
 }
 
-.activity-badge__grid-line {
-  fill: none;
-  stroke: var(--text-secondary);
-  stroke-width: 0.6;
-  stroke-dasharray: 2 4;
-  opacity: 0.7;
-}
-
-/* Hidden at the tight, zoomed-in crop — a coordinate graticule reads as
-   noise there — and faded in once expanded, where it's useful context
-   against the full map. */
-.activity-badge__grid {
-  opacity: 0;
-  transition: opacity 320ms ease;
-}
-
-.activity-badge__grid.is-visible {
-  opacity: 1;
+.activity-badge__grid-dot {
+  fill: var(--text-secondary);
+  opacity: 0.35;
 }
 
 .activity-badge__axis-label {
@@ -170,17 +172,6 @@
   font-size: 7px;
   fill: var(--text-secondary);
   opacity: 0.7;
-}
-
-/* Same fade as the grid — these are corner coordinates for the full map,
-   meaningless pinned to the tight crop's own arbitrary edges. */
-.activity-badge__axis-labels {
-  opacity: 0;
-  transition: opacity 320ms ease;
-}
-
-.activity-badge__axis-labels.is-visible {
-  opacity: 1;
 }
 
 /* Hangs further off the avatar's opposite corner on a phone — mirrors the
@@ -195,18 +186,11 @@
     width: 220px;
   }
 
-  /* Matches .music-widget__shell's own mobile compact height. */
-  .activity-badge__stage {
-    height: 60px;
-  }
-
-  .activity-badge--floating.is-expanded .activity-badge__stage {
-    height: 220px;
+  .activity-badge__shell {
+    padding: 8px;
   }
 
   .activity-badge__title {
-    top: 8px;
-    left: 8px;
     white-space: normal;
     overflow: visible;
     overflow-wrap: anywhere;

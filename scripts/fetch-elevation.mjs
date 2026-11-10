@@ -17,15 +17,11 @@ const ACTIVITIES_PATH = resolve(ROOT, '../public/activities.json')
 const OUTPUT_PATH = resolve(ROOT, '../public/topo.json')
 const ELEVATION_API = 'https://api.opentopodata.org/v1/srtm30m'
 const CLUSTER_THRESHOLD_KM = 15
-// Grid resolution — each row/batch of ≤100 is one OpenTopoData request (see
-// MAX_LOCATIONS_PER_REQUEST below). Marching squares only places a contour
-// vertex where the line crosses a grid edge, so a coarse grid gives each
-// line very few points to work with — the Catmull-Rom smoothing below still
-// runs, but with that few control points between real direction changes it
-// reads as short straight segments meeting at sharp kinks rather than a
-// curve. Denser sampling gives it enough points along the same terrain to
-// actually round the turns.
-const GRID_SIZE = 28
+// Grid resolution — 18x18 (2 batches of ≤100, OpenTopoData's per-request
+// cap) gives marching squares enough cells that, stitched and run through
+// the same Catmull-Rom smoothing the GPS tracks get, the result reads as a
+// curved line rather than a blocky staircase of grid-cell edges.
+const GRID_SIZE = 18
 const MAX_LOCATIONS_PER_REQUEST = 100
 // OpenTopoData's public instance asks for roughly 1 request/second.
 const REQUEST_DELAY_MS = 1100
@@ -34,7 +30,7 @@ const REQUEST_DELAY_MS = 1100
 const PADDING_FRACTION = 0.25
 // Contour lines are drawn at this many evenly-spaced elevations between the
 // sampled grid's own min and max.
-const CONTOUR_LEVELS = 12
+const CONTOUR_LEVELS = 8
 
 function centroid(points) {
   const lat = points.reduce((sum, [la]) => sum + la, 0) / points.length

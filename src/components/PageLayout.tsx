@@ -27,6 +27,9 @@ const GLOW_FALLOFF_PX = 640
 // GLOW_FALLOFF_PX or beyond, respectively.
 const GLOW_MAX_ALPHA = 0.85
 const GLOW_MIN_ALPHA = 0.12
+// The hero's Rive card keeps its original fixed border (see .hero-rive in
+// App.css) rather than tracking the cursor like every other .container.
+const GLOW_CARD_SELECTOR = '.container:not(.hero-rive)'
 
 function PageLayout({ children }: PageLayoutProps) {
   const location = useLocation()
@@ -108,7 +111,7 @@ function PageLayout({ children }: PageLayoutProps) {
   // passing over the navbar or any other chrome just the same.
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
-      const cards = document.querySelectorAll<HTMLElement>('.container')
+      const cards = document.querySelectorAll<HTMLElement>(GLOW_CARD_SELECTOR)
 
       for (const card of cards) {
         card.classList.remove('container--gradient-resetting')
@@ -147,7 +150,7 @@ function PageLayout({ children }: PageLayoutProps) {
     const handlePointerOut = (event: PointerEvent) => {
       if (event.relatedTarget !== null) return
 
-      const cards = document.querySelectorAll<HTMLElement>('.container')
+      const cards = document.querySelectorAll<HTMLElement>(GLOW_CARD_SELECTOR)
       for (const card of cards) {
         card.classList.add('container--gradient-resetting')
         card.style.setProperty('--glow-alpha', String(GLOW_MIN_ALPHA))

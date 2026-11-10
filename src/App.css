@@ -1,13 +1,9 @@
-/* Color tokens live under [data-theme="…"] rather than directly on :root, so
-   a theme is a self-contained, swappable block — toggle by setting
-   document.documentElement.dataset.theme. :root still carries the values
-   (defaulting to "green", the original palette) so nothing needs a
-   data-theme attribute present to render correctly. */
-:root,
-[data-theme="green"] {
+:root {
   --background: #0e1512;
   --backgroundAlpha: rgba(48, 164, 108, 0.1);
   --backgroundBlur: rgba(255, 255, 255, 0.1);
+  --blur-100: 8px;
+  --blur-200: 20px;
   --text: #b1f1cb;
   --text-hover: #d2f4df;
   --text-secondary: rgba(177, 241, 203, 0.7);
@@ -18,32 +14,6 @@
           rgba(177, 241, 203, 0.2)
       )
       border-box;
-}
-
-/* Same structure as "green" — identical saturation/lightness on every token,
-   hue rotated from green (~144-154°) to blue (~205-215°) by a constant 61°
-   offset, so the two themes keep the same tonal balance (how bright the
-   text reads against the background, how strong the logo accent is) and
-   differ only in hue. --backgroundBlur is hue-neutral (white-based glass
-   frosting) and isn't redefined here. */
-[data-theme="blue"] {
-  --background: #0e1115;
-  --backgroundAlpha: rgba(48, 103, 166, 0.1);
-  --text: #b1d6f1;
-  --text-hover: #d2e6f4;
-  --text-secondary: rgba(177, 214, 241, 0.7);
-  --border: rgba(177, 214, 241, 0.2);
-  --logo: #3067a6;
-  --gradient: linear-gradient(
-          rgba(177, 214, 241, 0.7),
-          rgba(177, 214, 241, 0.2)
-      )
-      border-box;
-}
-
-:root {
-  --blur-100: 8px;
-  --blur-200: 20px;
   --font-primary: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-secondary: "Satoshi", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-tertiary: monospace;
@@ -464,19 +434,6 @@ button:hover,
   cursor: grabbing;
 }
 
-/* Actual readable text within the two badges gets the ordinary text-select
-   cursor back — the `default` above is for the badge as a whole (a drag
-   handle, not a text block), but that inherits onto these otherwise, making
-   copy-able text look uninteractive. */
-.music-widget__eyebrow,
-.music-widget__marquee-item,
-.music-widget__expand-heading,
-.music-widget__expand-artist,
-.activity-badge__title,
-.activity-badge__expand-heading {
-  cursor: text;
-}
-
 /* The library sets a 900ms transition on enter/leave, which is right for the
    hover spring but turns a drag into a laggy smear — the badge would trail
    far behind the cursor. Track the pointer 1:1 while held instead, then let
@@ -494,13 +451,9 @@ button:hover,
   transition-duration: 0s !important;
 }
 
-/* Dragging a badge shouldn't select its text or start a native link drag —
-   scoped to .is-drag-confirmed (set once a press has actually moved past
-   TiltCard's DRAG_SLOP) rather than :active, which fires on every plain
-   mousedown and made it impossible to click-drag a selection over any of
-   the badges' text at all, drag or no drag. */
-.tilt-card-grab.is-drag-confirmed,
-.tilt-card-grab.is-drag-confirmed * {
+/* Dragging a badge shouldn't select its text or start a native link drag. */
+.tilt-card-grab:active,
+.tilt-card-grab:active * {
   user-select: none;
   -webkit-user-drag: none;
 }
@@ -632,14 +585,6 @@ button:hover,
   animation-duration: 10s;
 }
 
-/* A title short enough to already fit the badge — LastfmWidget skips
-   rendering the duplicated second copy the loop needs, so this only ever
-   holds the one, and just needs to sit still rather than run the (pointless,
-   single-copy) animation against it. */
-.music-widget__marquee-track--static {
-  animation: none;
-}
-
 .music-widget__marquee-item {
   flex: 0 0 auto;
   padding-right: 40px;
@@ -747,15 +692,6 @@ button:hover,
   padding-left: 0;
   color: var(--text);
   font-size: 0.8rem;
-  /* Fixed rather than "normal": the hover glitch (scrambleElementOnce)
-     substitutes in symbol characters ('#%+=-·') that can fall back to a
-     different font with taller metrics than the real text they replace —
-     "normal" leading is derived from whichever font is actually rendering
-     the current characters, so it grows for that instant and shrinks back
-     once the glitch resolves, visibly nudging every artist below it down
-     and back. A fixed line-height sets the line box's height directly,
-     independent of which characters/font are currently in it. */
-  line-height: 1.2rem;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -837,6 +773,13 @@ button:hover,
   padding: 1px;
   margin: 0;
   overflow: hidden;
+}
+
+/* The hero's Rive card skips the cursor-following glow every other
+   .container gets (PageLayout excludes it from that tracking entirely) —
+   its border stays the original fixed, static gradient instead. */
+.container.hero-rive {
+  background: var(--gradient);
 }
 
 .media-grid {
@@ -948,32 +891,16 @@ button:hover,
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
-  opacity: 1;
-  transition: opacity 0.22s ease;
-}
-
-.photos-grid--fading {
-  opacity: 0;
 }
 
 .photos-grid__item {
   min-width: 0;
-  aspect-ratio: 2 / 3;
-  background: var(--backgroundBlur);
 }
 
 .photos-grid__image {
   width: 100%;
-  height: 100%;
   display: block;
   border-radius: 19px;
-  object-fit: cover;
-  opacity: 0;
-  transition: opacity 0.5s ease;
-}
-
-.photos-grid__image.is-loaded {
-  opacity: 1;
 }
 
 ::-webkit-scrollbar {
@@ -1059,12 +986,7 @@ button:hover,
    push the badge past the edge. */
 @media (max-width: 640px) {
   .music-widget--floating {
-    /* Fixed px, not a percentage — same reasoning as the desktop rule above:
-       a percentage tracks the EXPANDED height too, so opening the popover
-       recomputes this translateY against the taller box and drags the badge
-       upward as it grows downward instead of only growing down. -30px is the
-       equivalent offset for this badge's smaller compact height. */
-    transform: translate(30%, -30px);
+    transform: translate(50%, -40%);
     width: 150px;
     max-width: fit-content;
   }
