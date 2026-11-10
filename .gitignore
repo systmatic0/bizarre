@@ -28,3 +28,6 @@ dist-ssr
 # scripts/fetch-elevation.mjs
 public/activities.json
 public/topo.json
+
+# Personal job-search material — stays local only, never pushed.
+/job-search/

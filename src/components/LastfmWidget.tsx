@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import TiltCard from './TiltCard'
+import { scrambleElementOnce } from './scrambleText'
 
 type RecentTrack = {
   name: string
@@ -65,6 +66,12 @@ function LastfmWidget() {
   // measured, which the marquee stays paused for (see the effect below) so
   // it doesn't render one frame at the browser's CSS-default duration first.
   const [marqueeDuration, setMarqueeDuration] = useState<number | null>(null)
+  // Whether the track title actually needs to scroll — a short "song -
+  // artist" that already fits the badge just sits there still, rather than
+  // looping pointlessly (and rather than rendering the duplicated second
+  // copy the loop needs, which would otherwise just sit visible next to it).
+  const [isMarqueeOverflowing, setIsMarqueeOverflowing] = useState(false)
+  const marqueeRef = useRef<HTMLDivElement | null>(null)
   const marqueeItemRef = useRef<HTMLSpanElement | null>(null)
   const expandRef = useRef<HTMLDivElement | null>(null)
   const cardRef = useRef<HTMLDivElement | null>(null)
@@ -99,6 +106,23 @@ function LastfmWidget() {
   }, [])
 
   useEffect(() => clearPendingExpand, [])
+
+  // Touch has no hover, so mouseenter alone can open the popover (most mobile
+  // browsers synthesize it on a first tap) but nothing ever fires mouseleave
+  // to close it again until some other element gets tapped. A tap on the
+  // badge itself needs to toggle it directly. Runs after any synthesized
+  // mouseenter above (same tick, before its EXPAND_DELAY_MS timeout), so it
+  // safely overrides whatever that scheduled. Skipped on hover-capable
+  // devices, where a click shouldn't fight with the hover state, and skipped
+  // for the footer link so tapping it navigates instead of just closing the
+  // popover.
+  const handleCardClick = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    if (window.matchMedia('(hover: none)').matches === false) return
+    if ((event.target as HTMLElement).closest('a')) return
+
+    clearPendingExpand()
+    setIsExpanded((expanded) => !expanded)
+  }, [])
 
   // Native listeners rather than React's onMouseEnter/onMouseLeave props.
   // React synthesises those from delegated mouseover/mouseout at the root, and
@@ -210,9 +234,13 @@ function LastfmWidget() {
   // rather than visibly starting at some default speed and then jumping.
   useLayoutEffect(() => {
     const item = marqueeItemRef.current
-    if (!item) return
+    const track = marqueeRef.current
+    if (!item || !track) return
 
-    setMarqueeDuration(item.getBoundingClientRect().width / MARQUEE_SPEED)
+    const itemWidth = item.getBoundingClientRect().width
+    const overflowing = itemWidth > track.getBoundingClientRect().width
+    setIsMarqueeOverflowing(overflowing)
+    setMarqueeDuration(overflowing ? itemWidth / MARQUEE_SPEED : null)
   }, [listening])
 
   // Fetched once — a 30-day ranking doesn't shift on the same 90s cadence
@@ -249,11 +277,12 @@ function LastfmWidget() {
     <div
       className={`music-widget music-widget--floating${isExpanded ? ' is-expanded' : ''}`}
       ref={cardRef}
+      onClick={handleCardClick}
     >
       {/* See the matching comment in ActivityWidget.tsx — same bump, for the
           same reason: the default 12deg reads as barely-there on the
           expanded popover. */}
-      <TiltCard glareEnable={false} scale={1} maxAngle={24}>
+      <TiltCard glareEnable={false} scale={1} maxAngle={16}>
         <div className='music-widget__shell'>
         <p className='music-widget__eyebrow'>
           <span className='music-widget__bars' aria-hidden='true'>
@@ -263,12 +292,12 @@ function LastfmWidget() {
           </span>
           Recent track
         </p>
-        <div className='music-widget__marquee' aria-label={nowPlaying}>
+        <div className='music-widget__marquee' aria-label={nowPlaying} ref={marqueeRef}>
           {/* key remounts on track change, so the new copy's animation
               starts fresh from the left rather than continuing mid-loop
               from wherever the previous track's happened to be. */}
           <div
-            className='music-widget__marquee-track'
+            className={`music-widget__marquee-track${isMarqueeOverflowing ? '' : ' music-widget__marquee-track--static'}`}
             key={nowPlaying}
             style={marqueeDuration ? { animationDuration: `${marqueeDuration}s` } : undefined}
           >
@@ -277,10 +306,14 @@ function LastfmWidget() {
             </span>
             {/* Same text again, right after the first (padding-right in CSS
                 is the gap) — the loop animates exactly one copy's width, so
-                this one slides into view as the first slides out, seamlessly. */}
-            <span className='music-widget__marquee-item' aria-hidden='true'>
-              {nowPlaying}
-            </span>
+                this one slides into view as the first slides out, seamlessly.
+                Only needed once it's actually scrolling — a title that
+                already fits has nowhere for a second copy to hide. */}
+            {isMarqueeOverflowing && (
+              <span className='music-widget__marquee-item' aria-hidden='true'>
+                {nowPlaying}
+              </span>
+            )}
           </div>
         </div>
 
@@ -291,7 +324,11 @@ function LastfmWidget() {
                 <p className='music-widget__expand-heading'>Top artists · 30 days</p>
                 <ol className='music-widget__expand-artists'>
                   {topArtists.map((artist) => (
-                    <li className='music-widget__expand-artist' key={artist.name}>
+                    <li
+                      className='music-widget__expand-artist'
+                      key={artist.name}
+                      onMouseEnter={(event) => scrambleElementOnce(event.currentTarget)}
+                    >
                       {artist.name}
                     </li>
                   ))}

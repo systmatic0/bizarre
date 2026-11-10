@@ -5,7 +5,6 @@ export const contactLinks = [
   { label: 'GitHub', href: 'https://github.com/systmatic0' },
   { label: 'Figma', href: 'https://www.figma.com/@kungfury' },
   { label: 'LinkedIn', href: 'https://www.linkedin.com/in/karlsimmer/' },
-  { label: 'CV', href: '/cv.pdf' },
 ]
 
 type ContactLinkListProps = {

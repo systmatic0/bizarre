@@ -12,12 +12,17 @@ const blackAndWhitePhotos = Array.from({ length: 19 }, (_, index) => ({
   alt: `Black and white photo ${index + 1}`,
 }))
 
+const GRID_FADE_MS = 220
+
 function Shots() {
   const [activeCategory, setActiveCategory] = useState<PhotoCategory>('color')
+  const [displayCategory, setDisplayCategory] = useState<PhotoCategory>('color')
+  const [isGridFading, setIsGridFading] = useState(false)
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
 
   const visiblePhotos = useMemo(
-    () => (activeCategory === 'color' ? colorPhotos : blackAndWhitePhotos),
-    [activeCategory],
+    () => (displayCategory === 'color' ? colorPhotos : blackAndWhitePhotos),
+    [displayCategory],
   )
 
   useEffect(() => {
@@ -27,6 +32,19 @@ function Shots() {
       document.body.classList.remove('photos-page--desaturated')
     }
   }, [activeCategory])
+
+  useEffect(() => {
+    if (activeCategory === displayCategory) return
+
+    setIsGridFading(true)
+
+    const timeout = window.setTimeout(() => {
+      setDisplayCategory(activeCategory)
+      setIsGridFading(false)
+    }, GRID_FADE_MS)
+
+    return () => window.clearTimeout(timeout)
+  }, [activeCategory, displayCategory])
 
   return (
     <div className='photos-page'>
@@ -60,14 +78,22 @@ function Shots() {
       </section>
 
       <section className='photos-gallery' aria-live='polite'>
-        <div className='photos-grid'>
+        <div className={`photos-grid${isGridFading ? ' photos-grid--fading' : ''}`}>
           {visiblePhotos.map((photo) => (
             <div key={photo.src} className='photos-grid__item container'>
               <img
                 src={photo.src}
                 alt={photo.alt}
-                className='photos-grid__image'
+                className={`photos-grid__image${loadedImages.has(photo.src) ? ' is-loaded' : ''}`}
                 loading='lazy'
+                onLoad={() =>
+                  setLoadedImages((previous) => {
+                    if (previous.has(photo.src)) return previous
+                    const next = new Set(previous)
+                    next.add(photo.src)
+                    return next
+                  })
+                }
               />
             </div>
           ))}

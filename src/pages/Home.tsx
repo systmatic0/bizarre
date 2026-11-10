@@ -138,7 +138,6 @@ function Home() {
             >
               Check out my work
             </button>
-            <a href='/cv.pdf' target='_blank' rel='noopener noreferrer' className='button-link'>Read my CV</a>
             {iconLinks.map(({ label, href, Icon }) => (
               <a
                 key={label}

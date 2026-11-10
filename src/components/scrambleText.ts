@@ -58,12 +58,47 @@ export function runScramble(nodes: { node: Text; original: string }[], onComplet
 // changes how the browser computes the box's vertical position within the
 // line, visibly nudging it. Block/flex-level elements don't have that
 // problem, but do need their box locked so a wider scramble doesn't push
-// a wrapped line (and everything after it) taller.
+// a wrapped line (and everything after it) taller — UNLESS white-space is
+// already nowrap, in which case wrapping was never possible and there's
+// nothing for a lock to protect against. That distinction matters beyond
+// just being unnecessary work: the lock reads the box via
+// getBoundingClientRect(), which returns the visually PROJECTED box for
+// anything sitting inside a 3D-transformed ancestor (e.g. the Last.fm
+// badge's hover tilt) — a rotated element's on-screen bounding box isn't
+// the same size as its own untransformed layout box, and how much it
+// differs changes continuously with the current tilt angle. Locking a
+// nowrap element's real (untransformed) height to that reading is exactly
+// what made the top-artists list grow by a different amount depending on
+// how the badge happened to be tilted at the moment of hover, always in
+// one direction (rotation projects consistently, not randomly).
+// Elements with a scramble currently running — a second call on the same
+// element (e.g. re-triggering on hover before the first pass finishes) used
+// to start an overlapping interval with its own, earlier-captured "restore
+// to this" box size. Whichever of the two finished first would then restore
+// the ORIGINAL (unlocked) size while the other was still mid-scramble,
+// leaving the box briefly free to grow — the scramble characters
+// ('#%+=-·') can fall back to a taller-metriced font than the plain text
+// they're replacing, and an unlocked box has nothing stopping that from
+// pushing everything below it down for that window. Ignoring a re-trigger
+// entirely, rather than trying to merge or restart it, keeps exactly one
+// lock/restore pair in flight per element at a time.
+const activeElements = new WeakSet<HTMLElement>()
+
 export function scrambleElementOnce(element: HTMLElement, onComplete?: () => void) {
+  if (activeElements.has(element)) return null
+
   const nodes = collectTextNodes(element)
   if (!nodes.length) return null
 
+  activeElements.add(element)
   const computed = window.getComputedStyle(element)
+
+  if (computed.whiteSpace === 'nowrap') {
+    return runScramble(nodes, () => {
+      activeElements.delete(element)
+      onComplete?.()
+    })
+  }
 
   if (computed.display === 'inline') {
     const previousWhiteSpace = element.style.whiteSpace
@@ -72,6 +107,7 @@ export function scrambleElementOnce(element: HTMLElement, onComplete?: () => voi
 
     return runScramble(nodes, () => {
       element.style.whiteSpace = previousWhiteSpace
+      activeElements.delete(element)
       onComplete?.()
     })
   }
@@ -96,6 +132,7 @@ export function scrambleElementOnce(element: HTMLElement, onComplete?: () => voi
     element.style.height = previousHeight
     element.style.overflow = previousOverflow
     element.style.boxSizing = previousBoxSizing
+    activeElements.delete(element)
     onComplete?.()
   })
 }
